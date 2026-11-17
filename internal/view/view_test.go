@@ -1,0 +1,174 @@
+package view_test
+
+import (
+	"slices"
+	"testing"
+
+	"github.com/egoist/mygo/ui"
+
+	"opensteamtool-gui-mygo/internal/app"
+	"opensteamtool-gui-mygo/internal/view"
+)
+
+type screen struct {
+	facts app.Facts
+}
+
+func (s *screen) view(c *ui.Context) {
+	view.Main(c, app.Derive(s.facts))
+}
+
+func shown(t *testing.T, facts app.Facts) *ui.Tester {
+	t.Helper()
+	s := &screen{facts: facts}
+	return ui.NewTester(s.view, 480, 360)
+}
+
+func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
+	invalid := []string{"Steam 路径无效", "请在设置中指定有效的 Steam 安装路径"}
+	notDownloaded := []string{"补丁未下载", "请点击「检查补丁更新」下载新版本"}
+	with := func(word string, explanation ...string) []string {
+		return append([]string{word}, explanation...)
+	}
+	tests := []struct {
+		name  string
+		facts app.Facts
+		texts []string
+	}{
+		{
+			name:  "applied",
+			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true},
+			texts: with("已应用"),
+		},
+		{
+			name:  "not applied",
+			facts: app.Facts{SteamPathValid: true, Deployment: app.NotApplied, PatchDownloaded: true},
+			texts: with("未应用"),
+		},
+		{
+			name:  "invalid path",
+			facts: app.Facts{SteamPathValid: false, Deployment: app.NotApplied, PatchDownloaded: true},
+			texts: with("未应用", invalid...),
+		},
+		{
+			name:  "invalid path keeps the applied fact out of the word",
+			facts: app.Facts{SteamPathValid: false, Deployment: app.Applied, PatchDownloaded: true},
+			texts: with("未应用", invalid...),
+		},
+		{
+			name:  "patch not downloaded",
+			facts: app.Facts{SteamPathValid: true, Deployment: app.NotApplied, PatchDownloaded: false},
+			texts: with("未应用", notDownloaded...),
+		},
+		{
+			name:  "invalid path outranks not downloaded",
+			facts: app.Facts{SteamPathValid: false, Deployment: app.NotApplied, PatchDownloaded: false},
+			texts: with("未应用", invalid...),
+		},
+		{
+			name:  "apply busy shows its stage",
+			facts: app.Facts{SteamPathValid: false, Busy: app.BusyApplyPatch},
+			texts: with("正在应用补丁…"),
+		},
+		{
+			name:  "uninstall busy shows its stage",
+			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Busy: app.BusyUninstall},
+			texts: with("正在卸载补丁…"),
+		},
+		{
+			name:  "start busy shows its stage",
+			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Busy: app.BusyStartSteam},
+			texts: with("正在启动 Steam…"),
+		},
+		{
+			name:  "stop busy shows its stage",
+			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Busy: app.BusyStopSteam},
+			texts: with("正在关闭 Steam…"),
+		},
+		{
+			name:  "update busy keeps the file fact",
+			facts: app.Facts{SteamPathValid: true, Deployment: app.NotApplied, Busy: app.BusyCheckUpdate},
+			texts: with("未应用"),
+		},
+		{
+			name:  "download busy keeps the file fact",
+			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Busy: app.BusyDownloadPatch},
+			texts: with("已应用"),
+		},
+		{
+			name:  "a failed apply outranks the file fact",
+			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, PatchFailed: true},
+			texts: with("补丁应用失败"),
+		},
+		{
+			name:  "a failed apply keeps the path explanation",
+			facts: app.Facts{SteamPathValid: false, PatchFailed: true},
+			texts: with("补丁应用失败", invalid...),
+		},
+		{
+			name:  "a failed apply keeps the download prompt while the patch is missing",
+			facts: app.Facts{SteamPathValid: true, PatchFailed: true},
+			texts: with("补丁应用失败", notDownloaded...),
+		},
+		{
+			name:  "busy outranks a failed apply",
+			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchFailed: true, Busy: app.BusyApplyPatch},
+			texts: with("正在应用补丁…"),
+		},
+		{
+			name:  "english applied",
+			facts: app.Facts{Lang: app.English, SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true},
+			texts: with("Applied"),
+		},
+		{
+			name:  "english invalid path",
+			facts: app.Facts{Lang: app.English, SteamPathValid: false},
+			texts: with("Not applied", "Steam path is invalid", "Set a valid Steam installation path in settings"),
+		},
+		{
+			name:  "english patch failed",
+			facts: app.Facts{Lang: app.English, SteamPathValid: true, PatchDownloaded: true, PatchFailed: true},
+			texts: with("Patch failed to apply"),
+		},
+		{
+			name:  "english patch not downloaded",
+			facts: app.Facts{Lang: app.English, SteamPathValid: true},
+			texts: with("Not applied", "Patch not downloaded", "Click Check for patch updates to download a new version"),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := shown(t, test.facts).Texts()
+			slices.Sort(got)
+			want := slices.Clone(test.texts)
+			slices.Sort(want)
+			if !slices.Equal(got, want) {
+				t.Errorf("texts %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestLanguageSwitchRebuildsTheSameWindow(t *testing.T) {
+	s := &screen{facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true}}
+	tt := ui.NewTester(s.view, 480, 360)
+	if !tt.HasText("已应用") {
+		t.Fatalf("texts %q before the switch", tt.Texts())
+	}
+	s.facts.Lang = app.English
+	tt.Frame()
+	if !tt.HasText("Applied") || tt.HasText("已应用") {
+		t.Errorf("texts %q after the switch", tt.Texts())
+	}
+}
+
+func TestTheStateWordIsReadAsStatusText(t *testing.T) {
+	tt := shown(t, app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true})
+	info, ok := tt.AccessByRole(ui.RoleStatus, "已应用")
+	if !ok {
+		t.Fatalf("no status region named 已应用 in %+v", tt.AccessAll())
+	}
+	if info.Role != ui.RoleStatus || info.Name != "已应用" {
+		t.Errorf("role %v name %q", info.Role, info.Name)
+	}
+}
