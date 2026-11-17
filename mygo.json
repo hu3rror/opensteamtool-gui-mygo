@@ -1,0 +1,6 @@
+{
+  "name": "opensteamtool-gui-mygo",
+  "identifier": "com.opensteamtoolgui.mygo",
+  "version": "0.1.0",
+  "out": "build"
+}
