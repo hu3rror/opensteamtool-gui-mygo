@@ -58,6 +58,54 @@ var stageStates = map[Busy]MainState{
 	BusyStopSteam:  MainStoppingSteam,
 }
 
+func Stage(busy Busy) (MainState, bool) {
+	state, ok := stageStates[busy]
+	return state, ok
+}
+
+type Gate struct {
+	kind Busy
+}
+
+func (g *Gate) Busy() Busy {
+	return g.kind
+}
+
+func (g *Gate) Try(kind Busy) bool {
+	if g.kind != Idle || kind == Idle {
+		return false
+	}
+	g.kind = kind
+	return true
+}
+
+func (g *Gate) Advance(kind Busy) {
+	if g.kind != Idle {
+		g.kind = kind
+	}
+}
+
+func (g *Gate) Release() {
+	g.kind = Idle
+}
+
+type Result int
+
+const (
+	NoResult Result = iota
+	SteamStarted
+	SteamRestarted
+	MissingSteamProgram
+	CloseSteamFailed
+	StartSteamFailed
+)
+
+type Status struct {
+	SteamRunning bool
+	Busy         Busy
+	Result       Result
+}
+
 type Deployment int
 
 const (
@@ -102,20 +150,26 @@ func DeploymentOf(layout Layout, entry string, root string, files Files) Deploym
 type Facts struct {
 	Lang            Lang
 	SteamPathValid  bool
+	SteamRunning    bool
 	Deployment      Deployment
 	PatchDownloaded bool
 	PatchFailed     bool
 	Busy            Busy
+	Result          Result
 }
 
 type View struct {
 	Lang        Lang
 	MainState   MainState
 	Explanation Explanation
+	Status      Status
 }
 
 func Derive(f Facts) View {
-	v := View{Lang: f.Lang, MainState: mainStateOf(f)}
+	v := View{Lang: f.Lang, MainState: mainStateOf(f), Status: Status{SteamRunning: f.SteamRunning, Result: f.Result}}
+	if _, ok := Stage(f.Busy); ok {
+		v.Status.Busy = f.Busy
+	}
 	if f.Busy == Idle {
 		v.Explanation = explanationOf(f)
 	}
@@ -123,7 +177,7 @@ func Derive(f Facts) View {
 }
 
 func mainStateOf(f Facts) MainState {
-	if state, ok := stageStates[f.Busy]; ok {
+	if state, ok := Stage(f.Busy); ok {
 		return state
 	}
 	if f.PatchFailed {

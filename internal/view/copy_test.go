@@ -55,3 +55,41 @@ func TestTitleFollowsTheLanguage(t *testing.T) {
 		t.Errorf("english title %q", got)
 	}
 }
+
+func TestEveryStatusBarSlotResolvesThroughTheTable(t *testing.T) {
+	for _, running := range []bool{true, false} {
+		k := steamWord(running)
+		if _, ok := copyTable[k]; !ok {
+			t.Errorf("the Steam slot for %v uses %q, which has no English", running, k)
+		}
+	}
+	for kind := app.BusyApplyPatch; kind <= app.BusyStopSteam; kind++ {
+		state, ok := app.Stage(kind)
+		if !ok {
+			t.Errorf("stage %d has no state", kind)
+			continue
+		}
+		k := mainStateKeys[state]
+		if _, exists := copyTable[k]; !exists {
+			t.Errorf("stage %d uses %q, which has no English", kind, k)
+		}
+		if word := mainStateKeys[app.Derive(app.Facts{Busy: kind}).MainState]; word != k {
+			t.Errorf("the stage of %d reads %q while the main word reads %q", kind, k, word)
+		}
+	}
+	for r := app.NoResult; r <= app.StartSteamFailed; r++ {
+		k, ok := resultCopies[r]
+		if r == app.NoResult {
+			if ok {
+				t.Errorf("no result resolved to %q", k)
+			}
+			continue
+		}
+		if !ok {
+			t.Fatalf("result %d has no copy", r)
+		}
+		if _, exists := copyTable[k]; !exists {
+			t.Errorf("result %d uses %q, which has no English", r, k)
+		}
+	}
+}

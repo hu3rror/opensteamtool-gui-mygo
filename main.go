@@ -1,23 +1,21 @@
 package main
 
 import (
+	_ "embed"
 	"log"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"opensteamtool-gui-mygo/internal/app"
 	"opensteamtool-gui-mygo/internal/rt"
+	"opensteamtool-gui-mygo/internal/steam"
 	"opensteamtool-gui-mygo/internal/view"
 )
 
-type window struct {
-	facts app.Facts
-}
-
-func (w *window) view(c *ui.Context) {
-	view.Main(c, app.Derive(w.facts))
-}
+//go:embed resources/icon.png
+var trayIcon []byte
 
 func startupLang() app.Lang {
 	langs := mygo.App.PreferredLanguages()
@@ -29,6 +27,9 @@ func startupLang() app.Lang {
 
 func factsFor(lang app.Lang, steamPath string, host rt.Runtime) app.Facts {
 	facts := app.Facts{Lang: lang, SteamPathValid: host.IsDir(steamPath)}
+	if running, err := steam.Running(host, steamPath); err == nil {
+		facts.SteamRunning = running
+	}
 	if facts.SteamPathValid {
 		facts.Deployment = app.DeploymentOf(app.OpenSteamToolLayout(), "", steamPath, host)
 	}
@@ -36,17 +37,30 @@ func factsFor(lang app.Lang, steamPath string, host rt.Runtime) app.Facts {
 }
 
 func main() {
-	w := &window{facts: factsFor(startupLang(), "", rt.OS{})}
+	s := newSession(startupLang(), "", rt.OS{}, time.Sleep)
 	mygo.App.WhenReady(func() {
-		mygo.NewWindow(mygo.WindowOptions{
-			Title:     view.Title(w.facts.Lang),
+		win := mygo.NewWindow(mygo.WindowOptions{
+			Title:     view.Title(s.snapshot().Lang),
 			Width:     480,
 			Height:    360,
 			MinWidth:  320,
 			MinHeight: 280,
 			StateKey:  "main",
-			Content:   ui.View(w.view),
+			Content:   ui.View(s.view),
 		})
+		s.frame = win.Invalidate
+		facts := s.snapshot()
+		if _, err := mygo.NewTray(mygo.TrayOptions{
+			Icon:    trayIcon,
+			ToolTip: view.Title(facts.Lang),
+			Menu: mygo.NewMenu([]*mygo.MenuItem{{
+				Label: view.RestartSteam(facts.Lang),
+				Click: func(*mygo.MenuItem, *mygo.Window) { go s.restartSteam() },
+			}}),
+		}); err != nil {
+			log.Printf("no tray icon: %v", err)
+		}
+		go s.watch(steam.PollInterval)
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
