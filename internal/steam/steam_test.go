@@ -131,17 +131,20 @@ func TestStopForcesAtOnceWhenTheMainProgramCannotBeAsked(t *testing.T) {
 
 func TestStopNeverForcesTheHelperItStarted(t *testing.T) {
 	fake := &rt.Fake{Files: map[string]bool{root + `\steam.exe`: true}, Procs: []rt.Process{steamProcess(100)}}
-	client, _ := clientWith(fake)
+	client, t2 := clientWith(fake)
 	fake.OnSpawn = func(call rt.Launch) {
 		fake.Procs = slices.DeleteFunc(fake.Procs, func(p rt.Process) bool { return p.PID == 100 })
 		fake.Procs = append(fake.Procs, rt.Process{PID: call.PID, Exe: call.Exe})
 	}
 
-	if err := client.Stop(root); err != nil {
-		t.Fatalf("Stop reported %v although the main program exited", err)
+	if err := client.Stop(root); !errors.Is(err, steam.ErrNotStopped) {
+		t.Fatalf("Stop reported %v, want ErrNotStopped while its helper is left", err)
 	}
 	if len(fake.Killed) != 0 {
 		t.Errorf("Stop forced %v, only its own shutdown helper was left", fake.Killed)
+	}
+	if t2.total < steam.GracefulBudget+steam.ForceBudget {
+		t.Errorf("Stop gave up after %v, want both budgets spent", t2.total)
 	}
 }
 

@@ -59,12 +59,12 @@ func (c *Client) Stop(root string) error {
 	var helper int
 	if main, ok := mainOf(processes, root); ok && c.host.IsFile(main.Exe) {
 		helper, err = c.host.Spawn(main.Exe, root, shutdownArgument)
-		if err == nil && empty(c.host, root, c.sleep, GracefulBudget, helper) {
+		if err == nil && empty(c.host, root, c.sleep, GracefulBudget) {
 			return nil
 		}
 	}
 	failure := c.force(root, helper)
-	if empty(c.host, root, c.sleep, ForceBudget, helper) {
+	if empty(c.host, root, c.sleep, ForceBudget) {
 		return nil
 	}
 	if failure != nil {
@@ -146,22 +146,22 @@ func alive(host rt.Runtime, root string, pid int) bool {
 	return slices.ContainsFunc(processes, func(process rt.Process) bool { return process.PID == pid })
 }
 
-func empty(host rt.Runtime, root string, sleep func(time.Duration), budget time.Duration, ignore int) bool {
+func empty(host rt.Runtime, root string, sleep func(time.Duration), budget time.Duration) bool {
 	for waited := time.Duration(0); waited < budget; waited += Step {
-		if emptyOf(host, root, ignore) {
+		if emptyOf(host, root) {
 			return true
 		}
 		sleep(Step)
 	}
-	return emptyOf(host, root, ignore)
+	return emptyOf(host, root)
 }
 
-func emptyOf(host rt.Runtime, root string, ignore int) bool {
+func emptyOf(host rt.Runtime, root string) bool {
 	processes, err := group(host, root)
 	if err != nil {
 		return false
 	}
-	return len(slices.DeleteFunc(processes, func(process rt.Process) bool { return process.PID == ignore })) == 0
+	return len(processes) == 0
 }
 func under(exe string, root string) bool {
 	if root == "" {
