@@ -872,6 +872,8 @@ func TestApplyingThePatchDeploysLaunchesAndSnapshots(t *testing.T) {
 	if err := os.WriteFile(manifest, []byte("\"version\" \"1712345678\"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	hidden := 0
+	s.hide = func() { hidden++ }
 
 	runCommand(t, s, s.applyPatch)
 
@@ -893,6 +895,9 @@ func TestApplyingThePatchDeploysLaunchesAndSnapshots(t *testing.T) {
 	want := config.DeploymentSnapshot{Source: source.KeyCommunity, Layout: source.LayoutOpenSteamTool, ClientBuild: "1712345678", PatchVersion: "v1.2.0"}
 	if s.config().Snapshot != want {
 		t.Errorf("the snapshot is %+v, want %+v", s.config().Snapshot, want)
+	}
+	if hidden != 1 {
+		t.Errorf("hid the window %d times, want once for the running Steam", hidden)
 	}
 	if !slices.Contains(shown(t, s), "补丁已应用") {
 		t.Errorf("texts = %q, want the applied result", shown(t, s))
@@ -976,7 +981,8 @@ func TestAConflictingFileBlocksThenTheRemovalDeploys(t *testing.T) {
 func TestAFailedLaunchKeepsTheSnapshotAndTheFailuresApart(t *testing.T) {
 	host, s, root := patchedSteam(t, false)
 	host.OnSpawn = func(rt.Launch) {}
-
+	hidden := 0
+	s.hide = func() { hidden++ }
 	runCommand(t, s, s.applyPatch)
 
 	facts := s.factsWithoutGate()
@@ -988,5 +994,25 @@ func TestAFailedLaunchKeepsTheSnapshotAndTheFailuresApart(t *testing.T) {
 	}
 	if !host.IsFile(filepath.Join(root, "dwmapi.dll")) {
 		t.Error("the deploy was rolled back by the failed launch")
+	}
+	if hidden != 0 {
+		t.Errorf("hid the window %d times for a failed launch", hidden)
+	}
+}
+
+func TestAStateRefreshClearsTheApplyFailure(t *testing.T) {
+	host, s, root := patchedSteam(t, false)
+	host.Files[filepath.Join(root, "version.dll")] = true
+
+	runCommand(t, s, s.applyPatch)
+	if facts := s.factsWithoutGate(); !facts.PatchFailed || facts.Conflict != "version.dll" {
+		t.Fatalf("facts = %+v, want the blocked deploy", facts)
+	}
+
+	s.setLanguage(app.LanguageEnglish)
+
+	facts := s.factsWithoutGate()
+	if facts.PatchFailed || facts.Conflict != "" {
+		t.Errorf("facts = %+v, the refresh kept the failure", facts)
 	}
 }

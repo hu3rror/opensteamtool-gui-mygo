@@ -57,6 +57,11 @@ func main() {
 		s.frame = win.Invalidate
 		s.onUI = win.Update
 		s.retitle = win.SetTitle
+		s.hide = func() {
+			if win.IsVisible() {
+				win.Hide()
+			}
+		}
 		lang := s.resolvedLanguage()
 		if _, err := mygo.NewTray(mygo.TrayOptions{
 			Icon:    trayIcon,

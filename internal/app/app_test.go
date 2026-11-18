@@ -157,3 +157,24 @@ func TestTheConflictReachesTheScreen(t *testing.T) {
 		t.Errorf("a screen without a conflict carries %q", blank.Conflict)
 	}
 }
+
+func TestThePrimaryActionNeedsAPathAndCompleteFiles(t *testing.T) {
+	ready := app.Facts{SteamPathValid: true, PatchDownloaded: true, PatchComplete: true}
+	tests := []struct {
+		name     string
+		facts    app.Facts
+		disabled bool
+	}{
+		{name: "ready", facts: ready},
+		{name: "no path", facts: app.Facts{PatchDownloaded: true, PatchComplete: true}, disabled: true},
+		{name: "no download", facts: app.Facts{SteamPathValid: true, PatchComplete: true}, disabled: true},
+		{name: "incomplete files", facts: app.Facts{SteamPathValid: true, PatchDownloaded: true}, disabled: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := app.Derive(test.facts).PrimaryDisabled; got != test.disabled {
+				t.Errorf("the primary action is disabled = %v, want %v", got, test.disabled)
+			}
+		})
+	}
+}

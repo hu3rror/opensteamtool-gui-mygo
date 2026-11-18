@@ -154,19 +154,27 @@ func TestAnOptionalFileMarkedKeepIsLeftAlone(t *testing.T) {
 
 type broken struct {
 	*rt.Fake
-	name string
+	write  string
+	rename string
 }
 
 func (b broken) WriteFile(path string, data []byte) error {
-	if filepath.Base(path) == b.name+".tmp" {
+	if b.write != "" && filepath.Base(path) == b.write+".tmp" {
 		return errors.New("the disk is full")
 	}
 	return b.Fake.WriteFile(path, data)
 }
 
+func (b broken) Rename(from string, to string) error {
+	if b.rename != "" && filepath.Base(to) == b.rename {
+		return errors.New("the target is open in another process")
+	}
+	return b.Fake.Rename(from, to)
+}
+
 func TestAMidWayFailureLeavesTheEarlierFileIntact(t *testing.T) {
 	root := `C:\Steam`
-	host := broken{Fake: &rt.Fake{Dirs: map[string]bool{root: true}}, name: "xinput1_4.dll"}
+	host := broken{Fake: &rt.Fake{Dirs: map[string]bool{root: true}}, write: "xinput1_4.dll"}
 	plan := planFor(root, source.LayoutOpenSteamTool, source.EntryDefault, "OpenSteamTool.dll", "xinput1_4.dll", "dwmapi.dll")
 
 	if err := deploy.Write(host, plan); err == nil {
@@ -177,5 +185,24 @@ func TestAMidWayFailureLeavesTheEarlierFileIntact(t *testing.T) {
 	}
 	if host.IsFile(filepath.Join(root, "dwmapi.dll")) {
 		t.Error("the deploy went on after the failure")
+	}
+}
+
+func TestAFailedRenameLeavesTheOldFileAndTakesTheTempAway(t *testing.T) {
+	root := `C:\Steam`
+	held := filepath.Join(root, "dwmapi.dll")
+	host := broken{Fake: &rt.Fake{Dirs: map[string]bool{root: true}, Files: map[string]bool{held: true}}, rename: "dwmapi.dll"}
+	plan := planFor(root, source.LayoutOpenSteamTool, source.EntryDefault, "OpenSteamTool.dll", "xinput1_4.dll", "dwmapi.dll")
+
+	if err := deploy.Write(host, plan); err == nil {
+		t.Fatal("a failed rename came back without an error")
+	}
+	if !host.IsFile(held) {
+		t.Error("the rename replaced the old file before it failed")
+	}
+	for name := range host.Files {
+		if strings.HasSuffix(name, ".tmp") {
+			t.Errorf("the temp file %q was left behind", name)
+		}
 	}
 }

@@ -92,16 +92,16 @@ func mainScreen(c *ui.Context, v app.View, st *State, a Actions) {
 
 func actionRow(c *ui.Context, v app.View, a Actions) {
 	t := c.Theme()
-	blocked := v.Status.Busy != app.Idle || v.UpdateInFlight != app.Idle
+	busy := v.Status.Busy != app.Idle || v.UpdateInFlight != app.Idle
 	ui.Row(c).Gap(t.Space(4)).Children(func() {
-		if ui.Button(c, text(v.Lang, applyAndStart)).Disabled(blocked).Clicked() {
+		if ui.Button(c, text(v.Lang, applyAndStart)).Disabled(busy || v.PrimaryDisabled).Clicked() {
 			a.Apply()
 		}
 		if v.Conflict == "" {
 			return
 		}
 		ui.Text(c, conflictText(v.Lang, v.Conflict)).Role(ui.RoleStatus)
-		if ui.Button(c, text(v.Lang, removeAndDeploy)).Disabled(blocked).Clicked() {
+		if ui.Button(c, text(v.Lang, removeAndDeploy)).Disabled(busy).Clicked() {
 			a.RemoveConflict()
 		}
 	})

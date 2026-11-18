@@ -612,6 +612,16 @@ func TestTheMainButtonRunsTheApply(t *testing.T) {
 	if ran != 1 {
 		t.Errorf("ran %d applies, the busy button is inert", ran)
 	}
+
+	s.facts.Busy = app.Idle
+	s.facts.PatchComplete = false
+	tt.Frame()
+	if err := tt.Click("应用补丁并启动 Steam"); err != nil {
+		t.Fatalf("click the main button with incomplete files: %v", err)
+	}
+	if ran != 1 {
+		t.Errorf("ran %d applies, incomplete local files disable the button", ran)
+	}
 }
 
 func TestAConflictingFileOffersTheRemoval(t *testing.T) {

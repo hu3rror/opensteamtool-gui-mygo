@@ -82,14 +82,15 @@ func (s *session) runApply(remove string) {
 func (s *session) recordApply(src source.Source, build string) {
 	s.onUI(func() {
 		s.mu.Lock()
-		s.facts.PatchFailed = false
-		s.facts.Conflict = ""
 		version := s.facts.PatchVersion
 		s.mu.Unlock()
 		s.writeConfig(func(cfg *config.Config) {
 			cfg.Snapshot = config.DeploymentSnapshot{Source: src.Key, Layout: src.Layout, ClientBuild: build, PatchVersion: version}
 		})
 		s.done(app.PatchApplied)
+		if s.hide != nil && s.factsWithoutGate().SteamRunning {
+			s.hide()
+		}
 	})
 }
 

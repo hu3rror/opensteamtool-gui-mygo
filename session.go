@@ -32,6 +32,7 @@ type session struct {
 
 	frame   func()
 	retitle func(string)
+	hide    func()
 }
 
 func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg config.Config, readable bool, dir string) *session {

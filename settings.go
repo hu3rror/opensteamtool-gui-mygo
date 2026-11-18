@@ -44,6 +44,8 @@ func withConfig(facts app.Facts, cfg config.Config, host rt.Runtime, dir string)
 		facts.SnapshotBuild = cfg.Snapshot.ClientBuild
 	}
 	facts.ClientBuild = patch.ClientBuild(cfg.SteamPath)
+	facts.PatchFailed = false
+	facts.Conflict = ""
 	return facts
 }
 

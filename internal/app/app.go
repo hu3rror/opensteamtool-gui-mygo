@@ -223,12 +223,14 @@ type View struct {
 	Conflict        string
 	Update          Conclusion
 	DownloadOffered bool
+	PrimaryDisabled bool
 	UpdateInFlight  Busy
 }
 
 func Derive(f Facts) View {
 	v := View{Lang: f.Language.Resolve(f.Locale), NeedsSetup: f.NeedsSetup, MainState: mainStateOf(f), Conflict: f.Conflict, Status: Status{SteamRunning: f.SteamRunning, Result: f.Result}}
 	v.Update, v.DownloadOffered = conclusionOf(f)
+	v.PrimaryDisabled = !f.SteamPathValid || !f.PatchDownloaded || !f.PatchComplete
 	if _, ok := Stage(f.Busy); ok {
 		v.Status.Busy = f.Busy
 	} else {
