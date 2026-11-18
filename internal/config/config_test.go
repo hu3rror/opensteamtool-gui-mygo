@@ -10,6 +10,7 @@ import (
 	"opensteamtool-gui-mygo/internal/app"
 	"opensteamtool-gui-mygo/internal/config"
 	"opensteamtool-gui-mygo/internal/rt"
+	"opensteamtool-gui-mygo/internal/source"
 )
 
 func host(dirs ...string) *rt.Fake {
@@ -39,7 +40,7 @@ func TestAMissingConfigIsUnreadable(t *testing.T) {
 
 func TestSaveThenLoadCarriesTheChoices(t *testing.T) {
 	dir := t.TempDir()
-	want := config.Config{SteamPath: `C:\Program Files\Steam`, Language: app.LanguageEnglish}
+	want := config.Config{SteamPath: `C:\Program Files\Steam`, Language: app.LanguageEnglish, Source: source.Community(), Entry: source.EntryDefault}
 	if err := config.Save(dir, want); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -122,7 +123,7 @@ func TestAnUnreadableConfigIsNeverPartiallyTaken(t *testing.T) {
 
 func TestAFieldThisVersionDoesNotUseIsTolerated(t *testing.T) {
 	dir := t.TempDir()
-	write(t, dir, `{"version": 1, "steam_path": "C:\\Steam", "language": "auto", "theme": "neon", "entry": "early", "patch_source": "gone"}`)
+	write(t, dir, `{"version": 1, "steam_path": "C:\\Steam", "language": "auto", "theme": "neon"}`)
 	got, readable, err := config.Load(dir, host(`C:\Steam`))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -156,5 +157,75 @@ func TestASavedPathThatIsNotAReadableDirectoryIsUnreadable(t *testing.T) {
 	locked := &rt.Fake{Dirs: map[string]bool{unreadable: true}, Unreadable: map[string]bool{unreadable: true}}
 	if _, readable, _ := config.Load(dir, locked); readable {
 		t.Fatal("a saved path that cannot be read read as readable")
+	}
+}
+
+func TestACustomSourceAndEntryRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	want := source.Source{Key: "https://github.com/someone/patch", Repository: "someone/patch", Layout: source.LayoutOpenSteamTool, Custom: true}
+	if err := config.Save(dir, config.Config{Language: app.LanguageAuto, Source: want, Entry: source.EntryEarly}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	got, readable, err := config.Load(dir, host())
+	if err != nil || !readable {
+		t.Fatalf("Load: %v, readable %v", err, readable)
+	}
+	if got.Source != want || got.Entry != source.EntryEarly {
+		t.Errorf("loaded %+v with entry %v, want %+v with the early entry", got.Source, got.Entry, want)
+	}
+}
+
+func TestASourceThatDoesNotReadFallsBackToTheCommunitySource(t *testing.T) {
+	for _, body := range []string{
+		`{"version": 1, "steam_path": "", "language": "auto"}`,
+		`{"version": 1, "steam_path": "", "language": "auto", "patch_source": ""}`,
+		`{"version": 1, "steam_path": "", "language": "auto", "patch_source": "gone"}`,
+		`{"version": 1, "steam_path": "", "language": "auto", "patch_source": "http://github.com/someone/patch"}`,
+		`{"version": 1, "steam_path": "", "language": "auto", "patch_source": "https://github.com/someone/patch/tree/main"}`,
+	} {
+		dir := t.TempDir()
+		write(t, dir, body)
+		got, readable, err := config.Load(dir, host())
+		if err != nil || !readable {
+			t.Fatalf("Load(%s): %v, readable %v", body, err, readable)
+		}
+		if got.Source != source.Community() || got.Source.Custom {
+			t.Errorf("Load(%s) reads source %+v, want the community one", body, got.Source)
+		}
+	}
+}
+
+func TestAnAddressMatchingABuiltinFallsBackToThatBuiltin(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, `{"version": 1, "steam_path": "", "language": "auto", "patch_source": "https://github.com/huanyuejue/OpenSteamTool/releases/latest"}`)
+	got, readable, err := config.Load(dir, host())
+	if err != nil || !readable {
+		t.Fatalf("Load: %v, readable %v", err, readable)
+	}
+	if got.Source != source.Community() {
+		t.Errorf("the address reads source %+v, want the community one", got.Source)
+	}
+}
+
+func TestAnEntryTheSourceCannotTakeFallsBackToTheDefault(t *testing.T) {
+	tests := []struct {
+		body string
+		want source.Entry
+	}{
+		{`{"version": 1, "steam_path": "", "language": "auto", "patch_source": "steamdaddy", "entry": "early"}`, source.EntryDefault},
+		{`{"version": 1, "steam_path": "", "language": "auto", "patch_source": "official", "entry": "early"}`, source.EntryDefault},
+		{`{"version": 1, "steam_path": "", "language": "auto", "entry": "sometimes"}`, source.EntryDefault},
+		{`{"version": 1, "steam_path": "", "language": "auto", "patch_source": "community", "entry": "early"}`, source.EntryEarly},
+	}
+	for _, test := range tests {
+		dir := t.TempDir()
+		write(t, dir, test.body)
+		got, readable, err := config.Load(dir, host())
+		if err != nil || !readable {
+			t.Fatalf("Load(%s): %v, readable %v", test.body, err, readable)
+		}
+		if got.Entry != test.want {
+			t.Errorf("Load(%s) reads entry %v, want %v", test.body, got.Entry, test.want)
+		}
 	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"opensteamtool-gui-mygo/internal/app"
 	"opensteamtool-gui-mygo/internal/rt"
+	"opensteamtool-gui-mygo/internal/source"
 )
 
 func TestLangForFollowsTheLocale(t *testing.T) {
@@ -27,6 +28,12 @@ func TestLangForFollowsTheLocale(t *testing.T) {
 			t.Errorf("LangFor(%q) = %v, want %v", test.locale, got, test.want)
 		}
 	}
+}
+
+func openSteamToolLayout() app.Layout {
+	manifest := source.LayoutOpenSteamTool.Manifest()
+	entry, _ := source.LayoutOpenSteamTool.EntryFile(source.EntryDefault)
+	return app.Layout{Payload: manifest.Payload.Name, SecondaryLoader: manifest.Loader.Name, DefaultEntry: entry}
 }
 
 func TestDeploymentFollowsTheLayoutFiles(t *testing.T) {
@@ -78,7 +85,7 @@ func TestDeploymentFollowsTheLayoutFiles(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := app.DeploymentOf(app.OpenSteamToolLayout(), test.entry, root, test.files); got != test.want {
+			if got := app.DeploymentOf(openSteamToolLayout(), test.entry, root, test.files); got != test.want {
 				t.Errorf("DeploymentOf(%+v) = %v, want %v", test.files.Files, got, test.want)
 			}
 		})
@@ -86,7 +93,7 @@ func TestDeploymentFollowsTheLayoutFiles(t *testing.T) {
 }
 
 func TestDeploymentNeedsASteamRoot(t *testing.T) {
-	if got := app.DeploymentOf(app.OpenSteamToolLayout(), "", "", everything{}); got != app.NotApplied {
+	if got := app.DeploymentOf(openSteamToolLayout(), "", "", everything{}); got != app.NotApplied {
 		t.Errorf("DeploymentOf against no Steam root = %v, want %v", got, app.NotApplied)
 	}
 }

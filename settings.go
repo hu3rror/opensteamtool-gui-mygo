@@ -8,25 +8,38 @@ import (
 	"opensteamtool-gui-mygo/internal/app"
 	"opensteamtool-gui-mygo/internal/config"
 	"opensteamtool-gui-mygo/internal/rt"
+	"opensteamtool-gui-mygo/internal/source"
 	"opensteamtool-gui-mygo/internal/steam"
 	"opensteamtool-gui-mygo/internal/view"
 )
 
-func factsFor(language app.Language, locale, steamPath string, host rt.Runtime) app.Facts {
-	return withPath(app.Facts{Language: language, Locale: locale}, steamPath, host)
+func factsFor(language app.Language, locale string, cfg config.Config, host rt.Runtime) app.Facts {
+	return withConfig(app.Facts{Language: language, Locale: locale}, cfg, host)
 }
 
-func withPath(facts app.Facts, steamPath string, host rt.Runtime) app.Facts {
-	facts.SteamPath = steamPath
-	facts.SteamPathValid = steamPath != "" && host.IsDir(steamPath)
+func withConfig(facts app.Facts, cfg config.Config, host rt.Runtime) app.Facts {
+	facts.Language = cfg.Language
+	facts.SteamPath = cfg.SteamPath
+	facts.SteamPathValid = cfg.SteamPath != "" && host.IsDir(cfg.SteamPath)
 	facts.Deployment = app.NotApplied
-	if running, err := steam.Running(host, steamPath); err == nil {
+	if running, err := steam.Running(host, cfg.SteamPath); err == nil {
 		facts.SteamRunning = running
 	}
 	if facts.SteamPathValid {
-		facts.Deployment = app.DeploymentOf(app.OpenSteamToolLayout(), "", steamPath, host)
+		facts.Deployment = deploymentOf(cfg, host)
 	}
 	return facts
+}
+
+func deploymentOf(cfg config.Config, files app.Files) app.Deployment {
+	src := source.OrDefault(cfg.Source)
+	manifest := src.Layout.Manifest()
+	entry, _ := src.Layout.EntryFile(source.Effective(src, cfg.Entry))
+	return app.DeploymentOf(app.Layout{
+		Payload:         manifest.Payload.Name,
+		SecondaryLoader: manifest.Loader.Name,
+		DefaultEntry:    entry,
+	}, "", cfg.SteamPath, files)
 }
 
 func (s *session) commitSteamPath(raw string) bool {
@@ -34,36 +47,19 @@ func (s *session) commitSteamPath(raw string) bool {
 	if path != "" && (!s.host.IsDir(path) || !s.host.IsReadableDir(path)) {
 		return false
 	}
-	current := s.factsWithoutGate()
-	if path == current.SteamPath {
+	if path == s.config().SteamPath {
 		return true
 	}
-	facts := withPath(current, path, s.host)
-
-	s.mu.Lock()
-	s.facts = facts
-	s.cfg.SteamPath = path
-	cfg := s.cfg
-	s.mu.Unlock()
-
 	s.uiState.PathDraft = path
-	s.save(cfg)
-	s.draw()
+	s.writeConfig(func(cfg *config.Config) { cfg.SteamPath = path })
 	return true
 }
 
 func (s *session) setLanguage(language app.Language) {
-	s.mu.Lock()
-	s.facts.Language = language
-	s.cfg.Language = language
-	cfg, locale := s.cfg, s.facts.Locale
-	s.mu.Unlock()
-
-	s.save(cfg)
+	s.writeConfig(func(cfg *config.Config) { cfg.Language = language })
 	if s.retitle != nil {
-		s.retitle(view.Title(language.Resolve(locale)))
+		s.retitle(view.Title(language.Resolve(s.factsWithoutGate().Locale)))
 	}
-	s.draw()
 }
 
 func (s *session) browseSteamPath() {
@@ -109,4 +105,51 @@ func (s *session) watch(interval time.Duration) {
 			s.draw()
 		}
 	}
+}
+
+func (s *session) config() config.Config {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cfg
+}
+
+func (s *session) writeConfig(change func(*config.Config)) {
+	s.mu.Lock()
+	cfg := s.cfg
+	change(&cfg)
+	s.facts = withConfig(s.facts, cfg, s.host)
+	s.cfg = cfg
+	s.mu.Unlock()
+	s.save(cfg)
+	s.draw()
+}
+
+func (s *session) applySource(draft source.Draft) (source.Source, bool) {
+	resolved, err := draft.Resolve()
+	if err != nil {
+		return source.Source{}, false
+	}
+	src := source.OrDefault(resolved)
+	if src.Key == source.OrDefault(s.config().Source).Key {
+		return src, true
+	}
+	s.writeConfig(func(cfg *config.Config) {
+		cfg.Source = src
+		cfg.Entry = source.Effective(src, cfg.Entry)
+	})
+	return src, true
+}
+
+func (s *session) setEntry(entry source.Entry) {
+	cfg := s.config()
+	if next := source.Effective(source.OrDefault(cfg.Source), entry); next != cfg.Entry {
+		s.writeConfig(func(cfg *config.Config) { cfg.Entry = next })
+	}
+}
+
+func (s *session) syncSource() {
+	cfg := s.config()
+	src := source.OrDefault(cfg.Source)
+	s.uiState.SetSource(src)
+	s.uiState.Entry = source.Effective(src, cfg.Entry)
 }

@@ -40,12 +40,14 @@ func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg c
 		frame:  func() {},
 		onUI:   func(fn func()) { fn() },
 	}
-	s.facts = factsFor(cfg.Language, locale, cfg.SteamPath, host)
+	s.facts = factsFor(cfg.Language, locale, cfg, host)
 	s.facts.NeedsSetup = !readable
 	s.actions = view.Actions{
 		SetLanguage: s.setLanguage,
 		CommitPath:  s.commitSteamPath,
 		Browse:      s.browseSteamPath,
+		ApplySource: s.applySource,
+		SetEntry:    s.setEntry,
 	}
 	return s
 }
@@ -54,6 +56,7 @@ func (s *session) view(c *ui.Context) {
 	facts := s.snapshot()
 	if !s.uiState.SettingsOpen {
 		s.syncSettings(facts)
+		s.syncSource()
 	}
 	view.Main(c, app.Derive(facts), &s.uiState, s.actions)
 }

@@ -151,14 +151,6 @@ type Layout struct {
 	DefaultEntry    string
 }
 
-func OpenSteamToolLayout() Layout {
-	return Layout{
-		Payload:         "OpenSteamTool.dll",
-		SecondaryLoader: "xinput1_4.dll",
-		DefaultEntry:    "dwmapi.dll",
-	}
-}
-
 type Files interface {
 	IsFile(path string) bool
 }

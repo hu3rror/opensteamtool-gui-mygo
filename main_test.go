@@ -12,6 +12,7 @@ import (
 	"opensteamtool-gui-mygo/internal/app"
 	"opensteamtool-gui-mygo/internal/config"
 	"opensteamtool-gui-mygo/internal/rt"
+	"opensteamtool-gui-mygo/internal/source"
 )
 
 func shown(t *testing.T, s *session) []string {
@@ -49,7 +50,7 @@ func TestARealSteamDirectoryWithTheLayoutReadsAsApplied(t *testing.T) {
 		writeFile(t, filepath.Join(steam, name))
 	}
 
-	s := &session{facts: factsFor(app.LanguageChinese, "zh-CN", steam, rt.OS{})}
+	s := &session{facts: factsFor(app.LanguageChinese, "zh-CN", config.Config{SteamPath: steam}, rt.OS{})}
 	if !slices.Contains(shown(t, s), "已应用") {
 		t.Fatalf("texts = %q, want 已应用", shown(t, s))
 	}
@@ -59,7 +60,7 @@ func TestARealSteamDirectoryWithoutTheLayoutReadsAsNotApplied(t *testing.T) {
 	steam := t.TempDir()
 	writeFile(t, filepath.Join(steam, "steam.exe"))
 
-	s := &session{facts: factsFor(app.LanguageChinese, "zh-CN", steam, rt.OS{})}
+	s := &session{facts: factsFor(app.LanguageChinese, "zh-CN", config.Config{SteamPath: steam}, rt.OS{})}
 	texts := shown(t, s)
 	if !slices.Contains(texts, "未应用") {
 		t.Fatalf("texts = %q, want 未应用", texts)
@@ -473,5 +474,149 @@ func TestAStaleSavedPathRoutesToSetupWithThePathKept(t *testing.T) {
 	}
 	if s.uiState.PathDraft != gone {
 		t.Fatalf("draft = %q, want the saved path for the Steam tab", s.uiState.PathDraft)
+	}
+}
+
+func TestSwitchingTheEntryRedrivesTheDeploymentWithoutADeploy(t *testing.T) {
+	host, root := steamHost(t, false)
+	for _, name := range []string{"OpenSteamTool.dll", "xinput1_4.dll", "version.dll"} {
+		host.Files[filepath.Join(root, name)] = true
+	}
+	cfg := config.Config{SteamPath: root, Language: app.LanguageAuto, Source: source.Community(), Entry: source.EntryEarly}
+	s := newSession(host, noSleep, "zh-CN", cfg, true)
+	dir := t.TempDir()
+	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
+
+	if got := s.factsWithoutGate().Deployment; got != app.Applied {
+		t.Fatalf("the early entry reads %v, want applied", got)
+	}
+	s.setEntry(source.EntryDefault)
+	if got := s.factsWithoutGate().Deployment; got != app.NotApplied {
+		t.Errorf("the default entry reads %v, want not applied", got)
+	}
+	if len(host.Spawned) != 0 {
+		t.Errorf("switching the entry spawned %d processes", len(host.Spawned))
+	}
+
+	loaded, readable, err := config.Load(dir, host)
+	if err != nil || !readable {
+		t.Fatalf("Load: %v, readable %v", err, readable)
+	}
+	if loaded.Entry != source.EntryDefault || loaded.Source.Key != source.KeyCommunity {
+		t.Errorf("saved %+v with entry %v, want the community source with the default entry", loaded.Source, loaded.Entry)
+	}
+}
+
+func TestApplyingASourceSavesItAndRedrivesTheLayout(t *testing.T) {
+	host, root := steamHost(t, false)
+	for _, name := range []string{"SteamDaddy.dll", "xinput1_4.dll", "version.dll"} {
+		host.Files[filepath.Join(root, name)] = true
+	}
+	s := newSession(host, noSleep, "zh-CN", config.Config{SteamPath: root, Language: app.LanguageAuto}, true)
+	dir := t.TempDir()
+	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
+
+	if got := s.factsWithoutGate().Deployment; got != app.NotApplied {
+		t.Fatalf("the community source reads %v, want not applied", got)
+	}
+	applied, ok := s.applySource(source.Draft{Builtin: source.KeySteamDaddy})
+	if !ok || applied.Key != source.KeySteamDaddy {
+		t.Fatalf("the draft applied to %+v (%v), want the SteamDaddy source", applied, ok)
+	}
+	if got := s.factsWithoutGate().Deployment; got != app.Applied {
+		t.Errorf("the SteamDaddy layout reads %v, want applied", got)
+	}
+	if len(host.Spawned) != 0 {
+		t.Errorf("applying a source spawned %d processes", len(host.Spawned))
+	}
+
+	loaded, readable, err := config.Load(dir, host)
+	if err != nil || !readable {
+		t.Fatalf("Load: %v, readable %v", err, readable)
+	}
+	if loaded.Source.Key != source.KeySteamDaddy || loaded.Source.Layout != source.LayoutSteamDaddy {
+		t.Errorf("saved source %+v, want the SteamDaddy source", loaded.Source)
+	}
+}
+
+func TestAnEntryTheNewSourceCannotTakeFallsBackToTheDefault(t *testing.T) {
+	host, root := steamHost(t, false)
+	cfg := config.Config{SteamPath: root, Language: app.LanguageAuto, Source: source.Community(), Entry: source.EntryEarly}
+	s := newSession(host, noSleep, "zh-CN", cfg, true)
+	dir := t.TempDir()
+	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
+
+	if _, ok := s.applySource(source.Draft{Builtin: source.KeyOfficial}); !ok {
+		t.Fatal("the official source was refused")
+	}
+	loaded, readable, err := config.Load(dir, host)
+	if err != nil || !readable {
+		t.Fatalf("Load: %v, readable %v", err, readable)
+	}
+	if loaded.Source.Key != source.KeyOfficial || loaded.Entry != source.EntryDefault {
+		t.Errorf("saved %+v with entry %v, want the official source with the default entry", loaded.Source, loaded.Entry)
+	}
+}
+
+func TestARejectedDraftLeavesTheSavedSourceAlone(t *testing.T) {
+	host, root := steamHost(t, false)
+	s := newSession(host, noSleep, "zh-CN", config.Config{SteamPath: root, Language: app.LanguageAuto}, true)
+	saved := 0
+	s.persist = func(config.Config) error { saved++; return nil }
+
+	if _, ok := s.applySource(source.Draft{Custom: "github.com/someone/patch"}); ok {
+		t.Error("an invalid address was applied")
+	}
+	if saved != 0 {
+		t.Errorf("an invalid address was saved %d times", saved)
+	}
+}
+
+func TestClosingTheDialogDropsTheSourceDraft(t *testing.T) {
+	host, root := steamHost(t, false)
+	s := newTestSession(host, root)
+
+	s.uiState.SettingsOpen = true
+	s.uiState.SourceChoice = source.KeySteamDaddy
+	s.uiState.SourceCustom = "https://github.com/someone/patch"
+	ui.NewTester(s.view, 480, 360)
+
+	if s.uiState.SourceChoice != source.KeySteamDaddy || s.uiState.SourceCustom == "" {
+		t.Fatalf("an open dialog lost the draft: %q %q", s.uiState.SourceChoice, s.uiState.SourceCustom)
+	}
+
+	s.uiState.SettingsOpen = false
+	ui.NewTester(s.view, 480, 360)
+
+	if s.uiState.SourceChoice != source.KeyCommunity || s.uiState.SourceCustom != "" {
+		t.Errorf("a closed dialog kept the draft: %q %q", s.uiState.SourceChoice, s.uiState.SourceCustom)
+	}
+	if s.uiState.Source.Key != source.KeyCommunity {
+		t.Errorf("the saved source reads %q, want the community one", s.uiState.Source.Key)
+	}
+}
+
+func TestACustomAddressIsSavedAndShownAgain(t *testing.T) {
+	host, root := steamHost(t, false)
+	s := newSession(host, noSleep, "zh-CN", config.Config{SteamPath: root, Language: app.LanguageAuto}, true)
+	dir := t.TempDir()
+	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
+	const address = "https://github.com/someone/patch"
+
+	applied, ok := s.applySource(source.Draft{Custom: address})
+	if !ok || applied.Key != address || !applied.Custom {
+		t.Fatalf("the draft applied to %+v (%v), want the custom address", applied, ok)
+	}
+	loaded, readable, err := config.Load(dir, host)
+	if err != nil || !readable {
+		t.Fatalf("Load: %v, readable %v", err, readable)
+	}
+	if loaded.Source.Key != address {
+		t.Errorf("the saved source is %q, want %q", loaded.Source.Key, address)
+	}
+
+	shown(t, s)
+	if s.uiState.SourceCustom != address {
+		t.Errorf("the address field reads %q, want %q", s.uiState.SourceCustom, address)
 	}
 }
