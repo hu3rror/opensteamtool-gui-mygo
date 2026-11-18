@@ -204,6 +204,7 @@ func TestExtractTakesTheOptionalMembersWhenTheReleaseHasThem(t *testing.T) {
 		"xinput1_4.dll":       "loader",
 		"version.dll.disable": "entry",
 		"cloud_redirect.dll":  "optional",
+		"ost-manager.exe":     "manager",
 		"dwmapi.dll":          "forbidden",
 	})
 	files, err := patch.Extract(archive, source.LayoutSteamDaddy, source.EntryDefault)
