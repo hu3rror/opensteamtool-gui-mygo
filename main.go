@@ -41,7 +41,7 @@ func main() {
 	if err != nil {
 		log.Printf("read config: %v", err)
 	}
-	s := newSession(rt.OS{}, time.Sleep, locale(), cfg, readable)
+	s := newSession(rt.OS{}, time.Sleep, locale(), cfg, readable, dir)
 	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
 
 	mygo.App.WhenReady(func() {

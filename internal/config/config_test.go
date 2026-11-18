@@ -229,3 +229,60 @@ func TestAnEntryTheSourceCannotTakeFallsBackToTheDefault(t *testing.T) {
 		}
 	}
 }
+
+func TestTheDeploymentSnapshotRoundTrips(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Config{
+		SteamPath: dir,
+		Language:  app.LanguageEnglish,
+		Source:    source.Source{Key: source.KeySteamDaddy, Repository: "Contrary-v2/SteamDaddy-Dll", Layout: source.LayoutSteamDaddy},
+		Entry:     source.EntryDefault,
+		Snapshot: config.DeploymentSnapshot{
+			Source:       "steamdaddy",
+			Layout:       source.LayoutSteamDaddy,
+			ClientBuild:  "1769731672",
+			PatchVersion: "v1.2.0",
+		},
+	}
+	if err := config.Save(dir, cfg); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	got, readable, err := config.Load(dir, host(dir))
+	if err != nil || !readable {
+		t.Fatalf("Load: %v, readable %v", err, readable)
+	}
+	if got.Snapshot != cfg.Snapshot {
+		t.Errorf("the snapshot reads %+v, want %+v", got.Snapshot, cfg.Snapshot)
+	}
+}
+
+func TestAConfigWithoutASnapshotHasNone(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, `{"version": 1, "steam_path": "", "language": "auto"}`)
+	got, readable, err := config.Load(dir, host())
+	if err != nil || !readable {
+		t.Fatalf("Load: %v, readable %v", err, readable)
+	}
+	if got.Snapshot != (config.DeploymentSnapshot{}) {
+		t.Errorf("the snapshot reads %+v, want none", got.Snapshot)
+	}
+}
+
+func TestASnapshotThisVersionCannotReadIsIgnored(t *testing.T) {
+	bodies := []string{
+		`{"version": 1, "steam_path": "", "language": "auto", "deployment_snapshot": {"source": "community", "layout": "elsewhere"}}`,
+		`{"version": 1, "steam_path": "", "language": "auto", "deployment_snapshot": {"source": "", "layout": "opensteamtool"}}`,
+		`{"version": 1, "steam_path": "", "language": "auto", "deployment_snapshot": "started"}`,
+	}
+	for _, body := range bodies {
+		dir := t.TempDir()
+		write(t, dir, body)
+		got, readable, err := config.Load(dir, host())
+		if err != nil || !readable {
+			t.Fatalf("Load(%s): %v, readable %v", body, err, readable)
+		}
+		if got.Snapshot != (config.DeploymentSnapshot{}) {
+			t.Errorf("Load(%s) reads snapshot %+v, want none", body, got.Snapshot)
+		}
+	}
+}

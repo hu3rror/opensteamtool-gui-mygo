@@ -130,6 +130,14 @@ const (
 	MissingSteamProgram
 	CloseSteamFailed
 	StartSteamFailed
+	Downloaded
+	NetworkFailed
+	NoAsset
+	ArchivesOnly
+	MissingMember
+	ParseFailed
+	LocalIOFailed
+	WriteFailed
 )
 
 type Status struct {
@@ -171,6 +179,16 @@ func DeploymentOf(layout Layout, entry string, root string, files Files) Deploym
 	return NotApplied
 }
 
+type Conclusion int
+
+const (
+	NoConclusion Conclusion = iota
+	UpToDate
+	NewPatch
+	CheckFailed
+	ClientUpdated
+)
+
 type Facts struct {
 	Language        Language
 	Locale          string
@@ -180,28 +198,68 @@ type Facts struct {
 	SteamRunning    bool
 	Deployment      Deployment
 	PatchDownloaded bool
+	PatchComplete   bool
+	PatchVersion    string
 	PatchFailed     bool
+	OnlineVersion   string
+	UpdateChecked   bool
+	UpdateFailed    bool
+	SnapshotBuild   string
+	ClientBuild     string
 	Busy            Busy
 	Result          Result
 }
 
 type View struct {
-	Lang        Lang
-	NeedsSetup  bool
-	MainState   MainState
-	Explanation Explanation
-	Status      Status
+	Lang            Lang
+	NeedsSetup      bool
+	MainState       MainState
+	Explanation     Explanation
+	Status          Status
+	Update          Conclusion
+	DownloadOffered bool
+	UpdateInFlight  Busy
 }
 
 func Derive(f Facts) View {
 	v := View{Lang: f.Language.Resolve(f.Locale), NeedsSetup: f.NeedsSetup, MainState: mainStateOf(f), Status: Status{SteamRunning: f.SteamRunning, Result: f.Result}}
+	v.Update, v.DownloadOffered = conclusionOf(f)
 	if _, ok := Stage(f.Busy); ok {
 		v.Status.Busy = f.Busy
+	} else {
+		v.UpdateInFlight = f.Busy
 	}
 	if f.Busy == Idle {
 		v.Explanation = explanationOf(f)
 	}
 	return v
+}
+
+func conclusionOf(f Facts) (Conclusion, bool) {
+	if !f.UpdateChecked && !f.UpdateFailed {
+		return NoConclusion, false
+	}
+	if f.UpdateFailed || f.OnlineVersion == "" {
+		return CheckFailed, false
+	}
+	complete := f.PatchDownloaded && f.PatchComplete
+	stale := !complete || !SameVersion(f.PatchVersion, f.OnlineVersion)
+	clientMoved := f.SnapshotBuild != "" && f.ClientBuild != "" && f.SnapshotBuild != f.ClientBuild
+	if f.PatchDownloaded && clientMoved {
+		return ClientUpdated, stale
+	}
+	if stale {
+		return NewPatch, true
+	}
+	return UpToDate, false
+}
+
+func SameVersion(left string, right string) bool {
+	return normalizeVersion(left) == normalizeVersion(right)
+}
+
+func normalizeVersion(v string) string {
+	return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(v)), "v")
 }
 
 func mainStateOf(f Facts) MainState {

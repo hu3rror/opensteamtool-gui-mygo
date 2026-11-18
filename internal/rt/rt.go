@@ -13,6 +13,7 @@ type Runtime interface {
 	Spawn(exe string, dir string, args ...string) (int, error)
 	Terminate(pid int) error
 	PickDirectory(title string, start string) (string, error)
+	Get(url string) ([]byte, error)
 }
 
 type OS struct{}
@@ -30,6 +31,10 @@ type Fake struct {
 	Unreadable map[string]bool
 	Picked     string
 	PickStart  string
+
+	Responses  map[string][]byte
+	FetchError error
+	Fetched    []string
 
 	Procs       []Process
 	Spawned     []Launch

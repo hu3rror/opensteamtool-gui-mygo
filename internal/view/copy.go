@@ -60,6 +60,22 @@ const (
 	entryDefault             key = "默认"
 	entryEarly               key = "早期隔离"
 	applyAndDownload         key = "应用并下载"
+	checkUpdate              key = "检查补丁更新"
+	downloadNewVersion       key = "下载并解压新版本"
+	checking                 key = "检查中…"
+	downloadingPatch         key = "正在下载补丁…"
+	upToDate                 key = "补丁已是最新"
+	newPatch                 key = "发现新补丁"
+	checkFailed              key = "检查失败"
+	clientUpdated            key = "Steam 客户端已更新，补丁可能不适配"
+	downloaded               key = "新版本下载并解压完成"
+	networkFailed            key = "网络请求失败"
+	noAsset                  key = "发布包中没有符合 *-Release.zip 的资产"
+	archivesOnly             key = "发布包只有非 zip 归档（.7z/.rar 等）"
+	missingMember            key = "发布包缺少该源布局要求的文件"
+	parseFailed              key = "解析线上版本失败"
+	localIOFailed            key = "本地文件操作失败"
+	writeFailed              key = "写入本地文件失败"
 	addressError             key = "地址无效：需要 github.com 仓库地址"
 )
 
@@ -116,6 +132,22 @@ var copyTable = map[key]string{
 	entryDefault:             "Default",
 	entryEarly:               "Early isolation",
 	applyAndDownload:         "Apply and download",
+	checkUpdate:              "Check for patch updates",
+	downloadNewVersion:       "Download and extract the new version",
+	checking:                 "Checking…",
+	downloadingPatch:         "Downloading the patch…",
+	upToDate:                 "Patch is up to date",
+	newPatch:                 "New patch found",
+	checkFailed:              "Check failed",
+	clientUpdated:            "Steam updated; the patch may not fit yet",
+	downloaded:               "New version downloaded and extracted",
+	networkFailed:            "Network request failed",
+	noAsset:                  "The release has no *-Release.zip asset",
+	archivesOnly:             "The release only contains non-zip archives (.7z, .rar)",
+	missingMember:            "The release is missing files this layout requires",
+	parseFailed:              "Failed to parse the online version",
+	localIOFailed:            "Local file operation failed",
+	writeFailed:              "Failed to write local files",
 	addressError:             "Invalid address: a github.com repository address is required",
 }
 
@@ -181,6 +213,21 @@ var resultCopies = map[app.Result]key{
 	app.MissingSteamProgram: steamMissing,
 	app.CloseSteamFailed:    closeSteamFailed,
 	app.StartSteamFailed:    startSteamFailed,
+	app.Downloaded:          downloaded,
+	app.NetworkFailed:       networkFailed,
+	app.NoAsset:             noAsset,
+	app.ArchivesOnly:        archivesOnly,
+	app.MissingMember:       missingMember,
+	app.ParseFailed:         parseFailed,
+	app.LocalIOFailed:       localIOFailed,
+	app.WriteFailed:         writeFailed,
+}
+
+var conclusionCopies = map[app.Conclusion]key{
+	app.UpToDate:      upToDate,
+	app.NewPatch:      newPatch,
+	app.CheckFailed:   checkFailed,
+	app.ClientUpdated: clientUpdated,
 }
 
 func text(l app.Lang, k key) string {

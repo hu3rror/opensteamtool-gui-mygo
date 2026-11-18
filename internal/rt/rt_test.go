@@ -1,8 +1,12 @@
 package rt_test
 
 import (
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -156,5 +160,50 @@ func TestTheFakePicksTheDirectoryItWasGiven(t *testing.T) {
 	}
 	if fake.PickStart != `C:\` {
 		t.Errorf("the dialog started at %q", fake.PickStart)
+	}
+}
+
+func TestOSFetchesABodyOverHTTP(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/release.json" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"tag_name":"v1"}`))
+	}))
+	defer server.Close()
+
+	osRuntime := rt.OS{}
+	body, err := osRuntime.Get(server.URL + "/release.json")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if string(body) != `{"tag_name":"v1"}` {
+		t.Errorf("body %q, want the served document", body)
+	}
+	if _, err := osRuntime.Get(server.URL + "/missing"); err == nil {
+		t.Error("a missing document came back without an error")
+	}
+}
+
+func TestTheFakeAnswersFromItsResponses(t *testing.T) {
+	fake := &rt.Fake{Responses: map[string][]byte{"https://example.test/release": []byte("body")}}
+	body, err := fake.Get("https://example.test/release")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if string(body) != "body" {
+		t.Errorf("body %q", body)
+	}
+	if !slices.Equal(fake.Fetched, []string{"https://example.test/release"}) {
+		t.Errorf("fetched %q, want the URL once", fake.Fetched)
+	}
+	if _, err := fake.Get("https://example.test/other"); err == nil {
+		t.Error("a URL the fake was not given came back without an error")
+	}
+
+	fake.FetchError = errors.New("offline")
+	if _, err := fake.Get("https://example.test/release"); err == nil {
+		t.Error("the offline fake answered anyway")
 	}
 }

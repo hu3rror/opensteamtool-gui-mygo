@@ -19,28 +19,31 @@ type session struct {
 	client  *steam.Client
 	persist func(config.Config) error
 	onUI    func(func())
+	dir     string
 
 	uiState view.State
 	actions view.Actions
 
-	mu    sync.Mutex
-	facts app.Facts
-	cfg   config.Config
-	gate  app.Gate
+	mu     sync.Mutex
+	facts  app.Facts
+	cfg    config.Config
+	gate   app.Gate
+	online online
 
 	frame   func()
 	retitle func(string)
 }
 
-func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg config.Config, readable bool) *session {
+func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg config.Config, readable bool, dir string) *session {
 	s := &session{
 		host:   host,
 		client: steam.New(host, sleep),
 		cfg:    cfg,
+		dir:    dir,
 		frame:  func() {},
 		onUI:   func(fn func()) { fn() },
 	}
-	s.facts = factsFor(cfg.Language, locale, cfg, host)
+	s.facts = factsFor(cfg.Language, locale, cfg, host, s.dir)
 	s.facts.NeedsSetup = !readable
 	s.actions = view.Actions{
 		SetLanguage: s.setLanguage,
@@ -48,6 +51,8 @@ func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg c
 		Browse:      s.browseSteamPath,
 		ApplySource: s.applySource,
 		SetEntry:    s.setEntry,
+		CheckUpdate: func() { s.checkUpdate() },
+		Download:    func() { s.downloadPatch() },
 	}
 	return s
 }

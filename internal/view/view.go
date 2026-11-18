@@ -34,6 +34,8 @@ type Actions struct {
 	Browse      func()
 	ApplySource func(draft source.Draft) (source.Source, bool)
 	SetEntry    func(source.Entry)
+	CheckUpdate func()
+	Download    func()
 }
 
 func Main(c *ui.Context, v app.View, st *State, a Actions) {
@@ -43,7 +45,7 @@ func Main(c *ui.Context, v app.View, st *State, a Actions) {
 			setup(c, v, st)
 			return
 		}
-		mainScreen(c, v, st)
+		mainScreen(c, v, st, a)
 	})
 	if st.SettingsOpen {
 		settingsDialog(c, v, st, a)
@@ -60,7 +62,7 @@ func setup(c *ui.Context, v app.View, st *State) {
 	}
 }
 
-func mainScreen(c *ui.Context, v app.View, st *State) {
+func mainScreen(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
 	ui.Row(c).Fill().Gap(t.Space(4)).Children(func() {
 		ui.Text(c, text(v.Lang, mainStateKeys[v.MainState])).Role(ui.RoleStatus).FontSize(t.FontSize * 1.5)
@@ -73,6 +75,7 @@ func mainScreen(c *ui.Context, v app.View, st *State) {
 		ui.Text(c, text(v.Lang, copy.title))
 		ui.Text(c, text(v.Lang, copy.body)).TextColor(t.TextMuted)
 	}
+	updateSlot(c, v, a)
 	ui.Row(c).Gap(t.Space(4)).Children(func() {
 		ui.Text(c, text(v.Lang, steamWord(v.Status.SteamRunning))).Role(ui.RoleStatus)
 		if stage, ok := app.Stage(v.Status.Busy); ok {
@@ -80,6 +83,36 @@ func mainScreen(c *ui.Context, v app.View, st *State) {
 		}
 		if copy, ok := resultCopies[v.Status.Result]; ok {
 			ui.Text(c, text(v.Lang, copy)).Role(ui.RoleStatus)
+		}
+	})
+}
+
+func updateSlot(c *ui.Context, v app.View, a Actions) {
+	t := c.Theme()
+	busy := v.Status.Busy != app.Idle
+	inflight := v.UpdateInFlight != app.Idle
+	progress := key("")
+	if v.UpdateInFlight == app.BusyCheckUpdate {
+		progress = checking
+	}
+	if v.UpdateInFlight == app.BusyDownloadPatch {
+		progress = downloadingPatch
+	}
+	ui.Row(c).Gap(t.Space(4)).Children(func() {
+		if ui.Button(c, text(v.Lang, checkUpdate)).Disabled(busy || inflight).Clicked() {
+			a.CheckUpdate()
+		}
+		if progress != "" {
+			ui.Text(c, text(v.Lang, progress)).Role(ui.RoleStatus)
+			return
+		}
+		if copy, ok := conclusionCopies[v.Update]; ok {
+			ui.Text(c, text(v.Lang, copy)).Role(ui.RoleStatus)
+		}
+		if v.DownloadOffered {
+			if ui.Button(c, text(v.Lang, downloadNewVersion)).Disabled(busy).Clicked() {
+				a.Download()
+			}
 		}
 	})
 }

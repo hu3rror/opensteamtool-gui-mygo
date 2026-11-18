@@ -142,6 +142,16 @@ type Manifest struct {
 	Discard   []string
 }
 
+func (m Manifest) Required(entry Entry) []Member {
+	required := []Member{m.Payload, m.Loader}
+	for _, member := range m.Entries {
+		if member.Entry == entry {
+			required = append(required, member.Member)
+		}
+	}
+	return required
+}
+
 var openSteamToolManifest = Manifest{
 	Payload: Member{Name: "OpenSteamTool.dll", Published: []string{"OpenSteamTool.dll"}},
 	Loader:  Member{Name: "xinput1_4.dll", Published: []string{"xinput1_4.dll"}},

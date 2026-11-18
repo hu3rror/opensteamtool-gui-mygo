@@ -19,19 +19,61 @@ const (
 	Version  = 1
 )
 
+type DeploymentSnapshot struct {
+	Source       string
+	Layout       source.Layout
+	ClientBuild  string
+	PatchVersion string
+}
+
 type Config struct {
 	SteamPath string
 	Language  app.Language
 	Source    source.Source
 	Entry     source.Entry
+	Snapshot  DeploymentSnapshot
 }
 
 type wire struct {
-	Version     int     `json:"version"`
-	SteamPath   *string `json:"steam_path"`
-	Language    *string `json:"language"`
-	PatchSource *string `json:"patch_source"`
-	Entry       *string `json:"entry"`
+	Version            int             `json:"version"`
+	SteamPath          *string         `json:"steam_path"`
+	Language           *string         `json:"language"`
+	PatchSource        *string         `json:"patch_source"`
+	Entry              *string         `json:"entry"`
+	DeploymentSnapshot json.RawMessage `json:"deployment_snapshot"`
+}
+
+type snapshotWire struct {
+	Source       string `json:"source"`
+	Layout       string `json:"layout"`
+	ClientBuild  string `json:"client_build"`
+	PatchVersion string `json:"patch_version"`
+}
+
+var layoutNames = map[source.Layout]string{
+	source.LayoutOpenSteamTool: "opensteamtool",
+	source.LayoutSteamDaddy:    "steamdaddy",
+}
+
+func snapshotFrom(raw json.RawMessage) DeploymentSnapshot {
+	var w snapshotWire
+	if len(raw) == 0 || json.Unmarshal(raw, &w) != nil {
+		return DeploymentSnapshot{}
+	}
+	layout, ok := layoutFrom(w.Layout)
+	if w.Source == "" || !ok {
+		return DeploymentSnapshot{}
+	}
+	return DeploymentSnapshot{Source: w.Source, Layout: layout, ClientBuild: w.ClientBuild, PatchVersion: w.PatchVersion}
+}
+
+func layoutFrom(name string) (source.Layout, bool) {
+	for candidate, label := range layoutNames {
+		if label == name {
+			return candidate, true
+		}
+	}
+	return source.LayoutOpenSteamTool, false
 }
 
 var languageNames = map[app.Language]string{
@@ -97,6 +139,7 @@ func Load(dir string, host rt.Runtime) (Config, bool, error) {
 		}
 	}
 	cfg.Entry = source.Effective(cfg.Source, cfg.Entry)
+	cfg.Snapshot = snapshotFrom(w.DeploymentSnapshot)
 	if cfg.SteamPath != "" && (!host.IsDir(cfg.SteamPath) || !host.IsReadableDir(cfg.SteamPath)) {
 		return cfg, false, fmt.Errorf("read config: %q is not a readable directory", cfg.SteamPath)
 	}
@@ -110,7 +153,20 @@ func Save(dir string, cfg Config) error {
 	}
 	patchSource := source.OrDefault(cfg.Source).Key
 	entry := entryNames[source.Effective(source.OrDefault(cfg.Source), cfg.Entry)]
-	data, err := json.MarshalIndent(wire{Version: Version, SteamPath: &cfg.SteamPath, Language: &language, PatchSource: &patchSource, Entry: &entry}, "", "  ")
+	w := wire{Version: Version, SteamPath: &cfg.SteamPath, Language: &language, PatchSource: &patchSource, Entry: &entry}
+	if cfg.Snapshot != (DeploymentSnapshot{}) {
+		snapshot, err := json.Marshal(snapshotWire{
+			Source:       cfg.Snapshot.Source,
+			Layout:       layoutNames[cfg.Snapshot.Layout],
+			ClientBuild:  cfg.Snapshot.ClientBuild,
+			PatchVersion: cfg.Snapshot.PatchVersion,
+		})
+		if err != nil {
+			return fmt.Errorf("save config: %w", err)
+		}
+		w.DeploymentSnapshot = snapshot
+	}
+	data, err := json.MarshalIndent(w, "", "  ")
 	if err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}

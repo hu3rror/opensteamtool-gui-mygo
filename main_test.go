@@ -1,9 +1,14 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +16,7 @@ import (
 
 	"opensteamtool-gui-mygo/internal/app"
 	"opensteamtool-gui-mygo/internal/config"
+	"opensteamtool-gui-mygo/internal/patch"
 	"opensteamtool-gui-mygo/internal/rt"
 	"opensteamtool-gui-mygo/internal/source"
 )
@@ -22,8 +28,10 @@ func shown(t *testing.T, s *session) []string {
 
 func noSleep(time.Duration) {}
 
-func newTestSession(host rt.Runtime, root string) *session {
-	return newSession(host, noSleep, "zh-CN", config.Config{SteamPath: root, Language: app.LanguageAuto}, true)
+func newTestSession(t *testing.T, host rt.Runtime, root string) *session {
+	t.Helper()
+	s := newSession(host, noSleep, "zh-CN", config.Config{SteamPath: root, Language: app.LanguageAuto}, true, t.TempDir())
+	return s
 }
 
 func TestWindowShowsTheDerivedScreenAndFollowsTheLanguage(t *testing.T) {
@@ -50,7 +58,7 @@ func TestARealSteamDirectoryWithTheLayoutReadsAsApplied(t *testing.T) {
 		writeFile(t, filepath.Join(steam, name))
 	}
 
-	s := &session{facts: factsFor(app.LanguageChinese, "zh-CN", config.Config{SteamPath: steam}, rt.OS{})}
+	s := &session{facts: factsFor(app.LanguageChinese, "zh-CN", config.Config{SteamPath: steam}, rt.OS{}, t.TempDir())}
 	if !slices.Contains(shown(t, s), "已应用") {
 		t.Fatalf("texts = %q, want 已应用", shown(t, s))
 	}
@@ -60,7 +68,7 @@ func TestARealSteamDirectoryWithoutTheLayoutReadsAsNotApplied(t *testing.T) {
 	steam := t.TempDir()
 	writeFile(t, filepath.Join(steam, "steam.exe"))
 
-	s := &session{facts: factsFor(app.LanguageChinese, "zh-CN", config.Config{SteamPath: steam}, rt.OS{})}
+	s := &session{facts: factsFor(app.LanguageChinese, "zh-CN", config.Config{SteamPath: steam}, rt.OS{}, t.TempDir())}
 	texts := shown(t, s)
 	if !slices.Contains(texts, "未应用") {
 		t.Fatalf("texts = %q, want 未应用", texts)
@@ -90,7 +98,7 @@ func TestTheTrayRestartClosesThenStarts(t *testing.T) {
 		}
 		host.Procs = append(host.Procs, rt.Process{PID: call.PID, Exe: call.Exe})
 	}
-	s := newTestSession(host, root)
+	s := newTestSession(t, host, root)
 	frames := 0
 	s.frame = func() { frames++ }
 
@@ -125,7 +133,7 @@ func TestTheTrayRestartClosesThenStarts(t *testing.T) {
 
 func TestARequestWhileBusyIsDroppedWithoutAQueue(t *testing.T) {
 	host, root := steamHost(t, false)
-	s := newTestSession(host, root)
+	s := newTestSession(t, host, root)
 	s.mu.Lock()
 	if !s.gate.Try(app.BusyApplyPatch) {
 		t.Fatal("the gate was busy")
@@ -158,7 +166,7 @@ func TestARequestWhileBusyIsDroppedWithoutAQueue(t *testing.T) {
 
 func TestThePollFollowsASteamProcess(t *testing.T) {
 	host, root := steamHost(t, false)
-	s := newTestSession(host, root)
+	s := newTestSession(t, host, root)
 	if !slices.Contains(shown(t, s), "Steam 未运行") {
 		t.Fatalf("texts = %q, want the stopped slot", shown(t, s))
 	}
@@ -186,7 +194,7 @@ func TestThePollFollowsASteamProcess(t *testing.T) {
 func TestTheCloseFailureIsRecordedAndTheStageClears(t *testing.T) {
 	host, root := steamHost(t, true)
 	host.OnTerminate = func(int) {}
-	s := newTestSession(host, root)
+	s := newTestSession(t, host, root)
 	if !s.restartSteam() {
 		t.Fatal("the restart was refused while the gate was idle")
 	}
@@ -210,7 +218,7 @@ func TestTheCloseFailureIsRecordedAndTheStageClears(t *testing.T) {
 func TestAStartWithoutTheSteamProgramIsRecorded(t *testing.T) {
 	root := t.TempDir()
 	host := &rt.Fake{Dirs: map[string]bool{root: true}}
-	s := newTestSession(host, root)
+	s := newTestSession(t, host, root)
 
 	if !s.restartSteam() {
 		t.Fatal("the start was refused while the gate was idle")
@@ -239,7 +247,7 @@ func TestACommittedSteamPathSurvivesARestart(t *testing.T) {
 	writeFile(t, filepath.Join(steam, "steam.exe"))
 	host := &rt.Fake{Dirs: map[string]bool{steam: true}}
 
-	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true)
+	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true, t.TempDir())
 	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
 	if !s.commitSteamPath(steam) {
 		t.Fatal("a readable directory was refused")
@@ -253,7 +261,7 @@ func TestACommittedSteamPathSurvivesARestart(t *testing.T) {
 		t.Fatalf("config = %+v readable = %v, want the committed path", cfg, readable)
 	}
 
-	restarted := newSession(host, noSleep, "zh-CN", cfg, readable)
+	restarted := newSession(host, noSleep, "zh-CN", cfg, readable, t.TempDir())
 	texts := shown(t, restarted)
 	if restarted.uiState.PathDraft != steam {
 		t.Fatalf("draft = %q, want the committed path", restarted.uiState.PathDraft)
@@ -268,7 +276,7 @@ func TestACommittedPathRefreshesTheDeploymentState(t *testing.T) {
 	for _, name := range []string{"steam.exe", "OpenSteamTool.dll", "xinput1_4.dll", "dwmapi.dll"} {
 		writeFile(t, filepath.Join(steam, name))
 	}
-	s := newSession(rt.OS{}, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true)
+	s := newSession(rt.OS{}, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true, t.TempDir())
 	s.persist = func(config.Config) error { return nil }
 
 	if !slices.Contains(shown(t, s), "Steam 路径无效") {
@@ -290,7 +298,7 @@ func TestAPathThatCannotBeReadIsRefused(t *testing.T) {
 	unreadable := t.TempDir()
 	host := &rt.Fake{Dirs: map[string]bool{unreadable: true}, Unreadable: map[string]bool{unreadable: true}}
 
-	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true)
+	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true, t.TempDir())
 	writes := 0
 	s.persist = func(config.Config) error {
 		writes++
@@ -313,7 +321,7 @@ func TestAPathThatCannotBeReadIsRefused(t *testing.T) {
 
 func TestAnEmptyPathIsAcceptedAsUnset(t *testing.T) {
 	dir := t.TempDir()
-	s := newTestSession(&rt.Fake{}, t.TempDir())
+	s := newTestSession(t, &rt.Fake{}, t.TempDir())
 	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
 
 	if !s.commitSteamPath("  ") {
@@ -334,7 +342,7 @@ func TestAnEmptyPathIsAcceptedAsUnset(t *testing.T) {
 func TestTheLanguageAppliesAtOnceAndIsRemembered(t *testing.T) {
 	dir := t.TempDir()
 	host := &rt.Fake{}
-	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true)
+	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true, t.TempDir())
 	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
 	var titles []string
 	s.retitle = func(title string) { titles = append(titles, title) }
@@ -357,14 +365,14 @@ func TestTheLanguageAppliesAtOnceAndIsRemembered(t *testing.T) {
 	if cfg.Language != app.LanguageEnglish {
 		t.Fatalf("saved language = %d, want the explicit choice", cfg.Language)
 	}
-	restarted := newSession(host, noSleep, "zh-CN", cfg, readable)
+	restarted := newSession(host, noSleep, "zh-CN", cfg, readable, t.TempDir())
 	if !slices.Contains(shown(t, restarted), "Not applied") {
 		t.Fatalf("texts = %q, the explicit choice must beat the Chinese locale", shown(t, restarted))
 	}
 }
 
 func TestAnUnreadableConfigAsksForSetup(t *testing.T) {
-	s := newSession(&rt.Fake{}, noSleep, "zh-CN", config.Config{}, false)
+	s := newSession(&rt.Fake{}, noSleep, "zh-CN", config.Config{}, false, t.TempDir())
 	texts := shown(t, s)
 	if !slices.Contains(texts, "尚未完成设置") {
 		t.Fatalf("texts = %q, want the setup notice", texts)
@@ -381,7 +389,7 @@ func TestCommittingAPathLeavesTheSetupScreenBehind(t *testing.T) {
 	dir := t.TempDir()
 	steam := t.TempDir()
 	host := &rt.Fake{Dirs: map[string]bool{steam: true}}
-	s := newSession(host, noSleep, "zh-CN", config.Config{}, false)
+	s := newSession(host, noSleep, "zh-CN", config.Config{}, false, t.TempDir())
 	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
 
 	if !slices.Contains(shown(t, s), "尚未完成设置") {
@@ -411,7 +419,7 @@ func TestBrowseCommitsThePickedDirectoryOnTheUIThread(t *testing.T) {
 	dir := t.TempDir()
 	steam := t.TempDir()
 	host := &rt.Fake{Dirs: map[string]bool{steam: true}, Picked: steam}
-	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true)
+	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true, t.TempDir())
 	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
 	hops := 0
 	s.onUI = func(fn func()) {
@@ -439,7 +447,7 @@ func TestBrowseCommitsThePickedDirectoryOnTheUIThread(t *testing.T) {
 func TestARepeatedCommitDoesNotWriteAgain(t *testing.T) {
 	steam := t.TempDir()
 	host := &rt.Fake{Dirs: map[string]bool{steam: true}}
-	s := newTestSession(host, "")
+	s := newTestSession(t, host, "")
 	writes := 0
 	s.persist = func(config.Config) error {
 		writes++
@@ -468,7 +476,7 @@ func TestAStaleSavedPathRoutesToSetupWithThePathKept(t *testing.T) {
 	if err == nil {
 		t.Fatal("a saved path that is not a directory came back without a reason")
 	}
-	s := newSession(&rt.Fake{}, noSleep, "zh-CN", cfg, readable)
+	s := newSession(&rt.Fake{}, noSleep, "zh-CN", cfg, readable, t.TempDir())
 	if !slices.Contains(shown(t, s), "尚未完成设置") {
 		t.Fatalf("texts = %q, want the setup screen", shown(t, s))
 	}
@@ -483,7 +491,7 @@ func TestSwitchingTheEntryRedrivesTheDeploymentWithoutADeploy(t *testing.T) {
 		host.Files[filepath.Join(root, name)] = true
 	}
 	cfg := config.Config{SteamPath: root, Language: app.LanguageAuto, Source: source.Community(), Entry: source.EntryEarly}
-	s := newSession(host, noSleep, "zh-CN", cfg, true)
+	s := newSession(host, noSleep, "zh-CN", cfg, true, t.TempDir())
 	dir := t.TempDir()
 	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
 
@@ -512,7 +520,7 @@ func TestApplyingASourceSavesItAndRedrivesTheLayout(t *testing.T) {
 	for _, name := range []string{"SteamDaddy.dll", "xinput1_4.dll", "version.dll"} {
 		host.Files[filepath.Join(root, name)] = true
 	}
-	s := newSession(host, noSleep, "zh-CN", config.Config{SteamPath: root, Language: app.LanguageAuto}, true)
+	s := newSession(host, noSleep, "zh-CN", config.Config{SteamPath: root, Language: app.LanguageAuto}, true, t.TempDir())
 	dir := t.TempDir()
 	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
 
@@ -542,7 +550,7 @@ func TestApplyingASourceSavesItAndRedrivesTheLayout(t *testing.T) {
 func TestAnEntryTheNewSourceCannotTakeFallsBackToTheDefault(t *testing.T) {
 	host, root := steamHost(t, false)
 	cfg := config.Config{SteamPath: root, Language: app.LanguageAuto, Source: source.Community(), Entry: source.EntryEarly}
-	s := newSession(host, noSleep, "zh-CN", cfg, true)
+	s := newSession(host, noSleep, "zh-CN", cfg, true, t.TempDir())
 	dir := t.TempDir()
 	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
 
@@ -560,7 +568,7 @@ func TestAnEntryTheNewSourceCannotTakeFallsBackToTheDefault(t *testing.T) {
 
 func TestARejectedDraftLeavesTheSavedSourceAlone(t *testing.T) {
 	host, root := steamHost(t, false)
-	s := newSession(host, noSleep, "zh-CN", config.Config{SteamPath: root, Language: app.LanguageAuto}, true)
+	s := newSession(host, noSleep, "zh-CN", config.Config{SteamPath: root, Language: app.LanguageAuto}, true, t.TempDir())
 	saved := 0
 	s.persist = func(config.Config) error { saved++; return nil }
 
@@ -574,7 +582,7 @@ func TestARejectedDraftLeavesTheSavedSourceAlone(t *testing.T) {
 
 func TestClosingTheDialogDropsTheSourceDraft(t *testing.T) {
 	host, root := steamHost(t, false)
-	s := newTestSession(host, root)
+	s := newTestSession(t, host, root)
 
 	s.uiState.SettingsOpen = true
 	s.uiState.SourceChoice = source.KeySteamDaddy
@@ -598,7 +606,7 @@ func TestClosingTheDialogDropsTheSourceDraft(t *testing.T) {
 
 func TestACustomAddressIsSavedAndShownAgain(t *testing.T) {
 	host, root := steamHost(t, false)
-	s := newSession(host, noSleep, "zh-CN", config.Config{SteamPath: root, Language: app.LanguageAuto}, true)
+	s := newSession(host, noSleep, "zh-CN", config.Config{SteamPath: root, Language: app.LanguageAuto}, true, t.TempDir())
 	dir := t.TempDir()
 	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
 	const address = "https://github.com/someone/patch"
@@ -618,5 +626,215 @@ func TestACustomAddressIsSavedAndShownAgain(t *testing.T) {
 	shown(t, s)
 	if s.uiState.SourceCustom != address {
 		t.Errorf("the address field reads %q, want %q", s.uiState.SourceCustom, address)
+	}
+}
+
+func zipped(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+	var body bytes.Buffer
+	writer := zip.NewWriter(&body)
+	for name, content := range files {
+		part, err := writer.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := part.Write([]byte(content)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return body.Bytes()
+}
+
+func releaseBody(version string, assets ...string) []byte {
+	var listed []string
+	for i, url := range assets {
+		listed = append(listed, fmt.Sprintf(`{"name": "asset-%d.zip", "browser_download_url": %q}`, i, url))
+	}
+	return []byte(fmt.Sprintf(`{"tag_name": %q, "assets": [%s]}`, version, strings.Join(listed, ", ")))
+}
+
+func communityURL() string {
+	return patch.LatestURL(source.Community().Repository)
+}
+
+func runCommand(t *testing.T, s *session, run func() bool) {
+	t.Helper()
+	drawn := make(chan struct{}, 8)
+	s.frame = func() { drawn <- struct{}{} }
+	if !run() {
+		t.Fatal("the command was refused")
+	}
+	select {
+	case <-drawn:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the command never started")
+	}
+	select {
+	case <-drawn:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the command never finished")
+	}
+}
+
+func TestTheCheckReportsANewPatchWithoutDownloadingAnything(t *testing.T) {
+	host := &rt.Fake{Responses: map[string][]byte{communityURL(): releaseBody("v1.2.0", "https://example.test/patch-release.zip")}}
+	s := newTestSession(t, host, "")
+	runCommand(t, s, s.checkUpdate)
+
+	facts := s.factsWithoutGate()
+	if !facts.UpdateChecked || facts.UpdateFailed || facts.OnlineVersion != "v1.2.0" {
+		t.Fatalf("the check landed in %+v", facts)
+	}
+	if !slices.Contains(shown(t, s), "发现新补丁") || !slices.Contains(shown(t, s), "下载并解压新版本") {
+		t.Errorf("texts %q, want the new patch conclusion and the download", shown(t, s))
+	}
+	if _, err := os.Stat(patch.Dir(s.dir, source.Community())); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the check wrote into the cache: %v", err)
+	}
+}
+
+func TestTheDownloadFillsThePerSourceCacheAndSettlesOnUpToDate(t *testing.T) {
+	steam := t.TempDir()
+	writeFile(t, filepath.Join(steam, "steam.exe"))
+	archive := zipped(t, map[string]string{
+		"OpenSteamTool.dll": "payload",
+		"xinput1_4.dll":     "loader",
+		"dwmapi.dll":        "entry",
+		"OpenSteamTool.lib": "artifact",
+		"notes.md":          "unlisted",
+	})
+	host := &rt.Fake{
+		Responses: map[string][]byte{
+			communityURL():                           releaseBody("v1.2.0", "https://example.test/patch-release.zip"),
+			"https://example.test/patch-release.zip": archive,
+		},
+	}
+	s := newTestSession(t, host, steam)
+	runCommand(t, s, s.checkUpdate)
+	runCommand(t, s, s.downloadPatch)
+
+	facts := s.factsWithoutGate()
+	if facts.Result != app.Downloaded {
+		t.Errorf("the download result is %v, want a finished download", facts.Result)
+	}
+	dir := patch.Dir(s.dir, source.Community())
+	cached, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read the cache: %v", err)
+	}
+	var names []string
+	for _, entry := range cached {
+		names = append(names, entry.Name())
+	}
+	slices.Sort(names)
+	want := []string{"OpenSteamTool.dll", "dwmapi.dll", "version.txt", "xinput1_4.dll"}
+	if !slices.Equal(names, want) {
+		t.Errorf("the cache holds %q, want %q", names, want)
+	}
+	record, err := os.ReadFile(filepath.Join(dir, "version.txt"))
+	if err != nil || strings.TrimSpace(string(record)) != "v1.2.0" {
+		t.Errorf("the version record is %q (%v), want v1.2.0", record, err)
+	}
+	if !slices.Contains(shown(t, s), "补丁已是最新") {
+		t.Errorf("texts %q, want the up to date conclusion", shown(t, s))
+	}
+	if _, err := os.Stat(filepath.Join(steam, "OpenSteamTool.dll")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the download deployed into the Steam directory: %v", err)
+	}
+	if s.config().Snapshot != (config.DeploymentSnapshot{}) {
+		t.Errorf("the download wrote the snapshot %+v", s.config().Snapshot)
+	}
+}
+
+func TestARejectedPackageLeavesTheCacheByteIdentical(t *testing.T) {
+	host := &rt.Fake{
+		Responses: map[string][]byte{
+			communityURL():                           releaseBody("v2.0.0", "https://example.test/patch-release.zip"),
+			"https://example.test/patch-release.zip": zipped(t, map[string]string{"OpenSteamTool.dll": "payload", "xinput1_4.dll": "loader"}),
+		},
+	}
+	s := newTestSession(t, host, "")
+	if err := patch.Install(patch.Dir(s.dir, source.Community()), []patch.File{{Name: "OpenSteamTool.dll", Data: []byte("old payload")}}, "v1"); err != nil {
+		t.Fatal(err)
+	}
+	runCommand(t, s, s.checkUpdate)
+	runCommand(t, s, s.downloadPatch)
+
+	if facts := s.factsWithoutGate(); facts.Result != app.MissingMember {
+		t.Errorf("the rejected download reports %v, want the missing member", facts.Result)
+	}
+	data, err := os.ReadFile(filepath.Join(patch.Dir(s.dir, source.Community()), "OpenSteamTool.dll"))
+	if err != nil || string(data) != "old payload" {
+		t.Errorf("the cache payload reads %q (%v), want the old one", data, err)
+	}
+}
+
+func TestABrokenPackageReportsALocalFileFailure(t *testing.T) {
+	host := &rt.Fake{
+		Responses: map[string][]byte{
+			communityURL():                           releaseBody("v2.0.0", "https://example.test/patch-release.zip"),
+			"https://example.test/patch-release.zip": []byte("<html>not a zip</html>"),
+		},
+	}
+	s := newTestSession(t, host, "")
+	runCommand(t, s, s.checkUpdate)
+	runCommand(t, s, s.downloadPatch)
+
+	if facts := s.factsWithoutGate(); facts.Result != app.LocalIOFailed {
+		t.Errorf("the broken package reports %v, want the local file failure", facts.Result)
+	}
+	if _, err := os.Stat(patch.Dir(s.dir, source.Community())); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the friendly cache was written anyway: %v", err)
+	}
+}
+
+func TestAnOfflineCheckReportsAFailureAndNeverReadsAsCurrent(t *testing.T) {
+	host := &rt.Fake{FetchError: errors.New("no route to host")}
+	s := newTestSession(t, host, "")
+	runCommand(t, s, s.checkUpdate)
+
+	facts := s.factsWithoutGate()
+	if !facts.UpdateFailed || facts.UpdateChecked {
+		t.Fatalf("the offline check landed in %+v", facts)
+	}
+	texts := shown(t, s)
+	if !slices.Contains(texts, "检查失败") {
+		t.Errorf("texts %q, want the failed conclusion", texts)
+	}
+	if slices.Contains(texts, "补丁已是最新") {
+		t.Errorf("texts %q claim the patch is current", texts)
+	}
+}
+
+func TestTheDownloadWithoutACheckIsRefused(t *testing.T) {
+	s := newTestSession(t, &rt.Fake{}, "")
+	if s.downloadPatch() {
+		t.Error("a download without a check was taken")
+	}
+	if s.snapshot().Busy != app.Idle {
+		t.Error("the refused download left the gate busy")
+	}
+}
+
+func TestASourceChangeForgetsThePreviousCheck(t *testing.T) {
+	host := &rt.Fake{Responses: map[string][]byte{communityURL(): releaseBody("v1.2.0", "https://example.test/patch-release.zip")}}
+	s := newTestSession(t, host, "")
+	runCommand(t, s, s.checkUpdate)
+	if !s.factsWithoutGate().UpdateChecked {
+		t.Fatal("the check did not land")
+	}
+
+	if _, ok := s.applySource(source.Draft{Builtin: source.KeySteamDaddy}); !ok {
+		t.Fatal("the source change was rejected")
+	}
+	facts := s.factsWithoutGate()
+	if facts.UpdateChecked || facts.OnlineVersion != "" {
+		t.Errorf("the previous source's check survived: %+v", facts)
+	}
+	if s.downloadPatch() {
+		t.Error("a download was offered from the previous source's result")
 	}
 }

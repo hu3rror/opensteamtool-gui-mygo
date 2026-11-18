@@ -7,17 +7,23 @@ import (
 
 	"opensteamtool-gui-mygo/internal/app"
 	"opensteamtool-gui-mygo/internal/config"
+	"opensteamtool-gui-mygo/internal/patch"
 	"opensteamtool-gui-mygo/internal/rt"
 	"opensteamtool-gui-mygo/internal/source"
 	"opensteamtool-gui-mygo/internal/steam"
 	"opensteamtool-gui-mygo/internal/view"
 )
 
-func factsFor(language app.Language, locale string, cfg config.Config, host rt.Runtime) app.Facts {
-	return withConfig(app.Facts{Language: language, Locale: locale}, cfg, host)
+type online struct {
+	asset   patch.Asset
+	version string
 }
 
-func withConfig(facts app.Facts, cfg config.Config, host rt.Runtime) app.Facts {
+func factsFor(language app.Language, locale string, cfg config.Config, host rt.Runtime, dir string) app.Facts {
+	return withConfig(app.Facts{Language: language, Locale: locale}, cfg, host, dir)
+}
+
+func withConfig(facts app.Facts, cfg config.Config, host rt.Runtime, dir string) app.Facts {
 	facts.Language = cfg.Language
 	facts.SteamPath = cfg.SteamPath
 	facts.SteamPathValid = cfg.SteamPath != "" && host.IsDir(cfg.SteamPath)
@@ -28,6 +34,16 @@ func withConfig(facts app.Facts, cfg config.Config, host rt.Runtime) app.Facts {
 	if facts.SteamPathValid {
 		facts.Deployment = deploymentOf(cfg, host)
 	}
+	src := source.OrDefault(cfg.Source)
+	state := patch.Inspect(patch.Dir(dir, src), src.Layout, source.Effective(src, cfg.Entry))
+	facts.PatchDownloaded = state.Present
+	facts.PatchComplete = state.Complete
+	facts.PatchVersion = state.Version
+	facts.SnapshotBuild = ""
+	if cfg.Snapshot.Source == src.Key && cfg.Snapshot.Layout == src.Layout {
+		facts.SnapshotBuild = cfg.Snapshot.ClientBuild
+	}
+	facts.ClientBuild = patch.ClientBuild(cfg.SteamPath)
 	return facts
 }
 
@@ -116,9 +132,17 @@ func (s *session) config() config.Config {
 func (s *session) writeConfig(change func(*config.Config)) {
 	s.mu.Lock()
 	cfg := s.cfg
+	previous := source.OrDefault(cfg.Source).Key
 	change(&cfg)
-	s.facts = withConfig(s.facts, cfg, s.host)
+	moved := source.OrDefault(cfg.Source).Key != previous
 	s.cfg = cfg
+	s.mu.Unlock()
+	next := withConfig(s.facts, cfg, s.host, s.dir)
+	s.mu.Lock()
+	s.facts = next
+	if moved {
+		s.dropOnline()
+	}
 	s.mu.Unlock()
 	s.save(cfg)
 	s.draw()

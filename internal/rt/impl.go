@@ -2,9 +2,13 @@ package rt
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"slices"
+	"time"
 
 	"github.com/egoist/mygo"
 )
@@ -29,6 +33,30 @@ func (OS) IsReadableDir(path string) bool {
 	return err == nil || errors.Is(err, io.EOF)
 }
 
+var httpClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+		TLSHandshakeTimeout: 10 * time.Second,
+	},
+}
+
+func (OS) Get(url string) ([]byte, error) {
+	response, err := httpClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("get %s: %w", url, err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("get %s: %s", url, response.Status)
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("get %s: %w", url, err)
+	}
+	return body, nil
+}
+
 func (OS) PickDirectory(title string, start string) (string, error) {
 	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: title, DefaultPath: start, Directory: true})
 	if err != nil || len(paths) == 0 {
@@ -47,6 +75,18 @@ func (f *Fake) PickDirectory(_ string, start string) (string, error) {
 }
 
 func (f Fake) IsFile(path string) bool { return f.Files[path] }
+
+func (f *Fake) Get(url string) ([]byte, error) {
+	f.Fetched = append(f.Fetched, url)
+	if f.FetchError != nil {
+		return nil, f.FetchError
+	}
+	body, ok := f.Responses[url]
+	if !ok {
+		return nil, fmt.Errorf("get %s: the fake has no response", url)
+	}
+	return body, nil
+}
 
 func (f *Fake) Processes() ([]Process, error) { return slices.Clone(f.Procs), nil }
 
