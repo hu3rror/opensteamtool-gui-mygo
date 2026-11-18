@@ -11,15 +11,20 @@ import (
 )
 
 type screen struct {
-	facts app.Facts
+	facts   app.Facts
+	state   view.State
+	actions view.Actions
 }
 
 func (s *screen) view(c *ui.Context) {
-	view.Main(c, app.Derive(s.facts))
+	view.Main(c, app.Derive(s.facts), &s.state, s.actions)
 }
 
 func shown(t *testing.T, facts app.Facts) *ui.Tester {
 	t.Helper()
+	if facts.Locale == "" {
+		facts.Locale = "zh-CN"
+	}
 	s := &screen{facts: facts}
 	return ui.NewTester(s.view, 480, 360)
 }
@@ -28,10 +33,10 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 	invalid := []string{"Steam 路径无效", "请在设置中指定有效的 Steam 安装路径"}
 	notDownloaded := []string{"补丁未下载", "请点击「检查补丁更新」下载新版本"}
 	with := func(word string, rest ...string) []string {
-		return append([]string{word, "Steam 未运行"}, rest...)
+		return append([]string{word, "Steam 未运行", "设置"}, rest...)
 	}
 	busyWith := func(stage string) []string {
-		return []string{stage, stage, "Steam 未运行"}
+		return []string{stage, stage, "Steam 未运行", "设置"}
 	}
 	tests := []struct {
 		name  string
@@ -51,12 +56,12 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 		{
 			name:  "steam running",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, SteamRunning: true},
-			texts: []string{"已应用", "Steam 正在运行"},
+			texts: []string{"已应用", "Steam 正在运行", "设置"},
 		},
 		{
 			name:  "the last result follows the steam slot",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, SteamRunning: true, Result: app.SteamRestarted},
-			texts: []string{"已应用", "Steam 正在运行", "Steam 已重启"},
+			texts: []string{"已应用", "Steam 正在运行", "Steam 已重启", "设置"},
 		},
 		{
 			name:  "a failed close lands in the result slot",
@@ -140,28 +145,28 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 		},
 		{
 			name:  "english applied",
-			facts: app.Facts{Lang: app.English, SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true},
-			texts: []string{"Applied", "Steam is not running"},
+			facts: app.Facts{Language: app.LanguageEnglish, SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true},
+			texts: []string{"Applied", "Steam is not running", "Settings"},
 		},
 		{
 			name:  "english result",
-			facts: app.Facts{Lang: app.English, SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Result: app.StartSteamFailed},
-			texts: []string{"Applied", "Steam is not running", "Failed to start Steam"},
+			facts: app.Facts{Language: app.LanguageEnglish, SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Result: app.StartSteamFailed},
+			texts: []string{"Applied", "Steam is not running", "Failed to start Steam", "Settings"},
 		},
 		{
 			name:  "english invalid path",
-			facts: app.Facts{Lang: app.English, SteamPathValid: false},
-			texts: []string{"Not applied", "Steam is not running", "Steam path is invalid", "Set a valid Steam installation path in settings"},
+			facts: app.Facts{Language: app.LanguageEnglish, SteamPathValid: false},
+			texts: []string{"Not applied", "Steam is not running", "Settings", "Steam path is invalid", "Set a valid Steam installation path in settings"},
 		},
 		{
 			name:  "english patch failed",
-			facts: app.Facts{Lang: app.English, SteamPathValid: true, PatchDownloaded: true, PatchFailed: true},
-			texts: []string{"Patch failed to apply", "Steam is not running"},
+			facts: app.Facts{Language: app.LanguageEnglish, SteamPathValid: true, PatchDownloaded: true, PatchFailed: true},
+			texts: []string{"Patch failed to apply", "Steam is not running", "Settings"},
 		},
 		{
 			name:  "english patch not downloaded",
-			facts: app.Facts{Lang: app.English, SteamPathValid: true},
-			texts: []string{"Not applied", "Steam is not running", "Patch not downloaded", "Click Check for patch updates to download a new version"},
+			facts: app.Facts{Language: app.LanguageEnglish, SteamPathValid: true},
+			texts: []string{"Not applied", "Steam is not running", "Settings", "Patch not downloaded", "Click Check for patch updates to download a new version"},
 		},
 	}
 	for _, test := range tests {
@@ -193,12 +198,12 @@ func TestTheWindowCarriesTheSteamSlotWhateverHappens(t *testing.T) {
 }
 
 func TestLanguageSwitchRebuildsTheSameWindow(t *testing.T) {
-	s := &screen{facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true}}
+	s := &screen{facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true}}
 	tt := ui.NewTester(s.view, 480, 360)
 	if !tt.HasText("已应用") {
 		t.Fatalf("texts %q before the switch", tt.Texts())
 	}
-	s.facts.Lang = app.English
+	s.facts.Language = app.LanguageEnglish
 	tt.Frame()
 	if !tt.HasText("Applied") || tt.HasText("已应用") {
 		t.Errorf("texts %q after the switch", tt.Texts())
@@ -222,5 +227,285 @@ func TestTheTrayItemSpeaksBothLanguages(t *testing.T) {
 	}
 	if got := view.RestartSteam(app.English); got != "Restart Steam" {
 		t.Errorf("the English tray item is %q", got)
+	}
+}
+
+func dialog(t *testing.T) (*screen, *ui.Tester) {
+	t.Helper()
+	s := &screen{facts: app.Facts{Locale: "zh-CN"}}
+	s.actions = view.Actions{
+		SetLanguage: func(app.Language) {},
+		CommitPath:  func(string) bool { return true },
+		Browse:      func() {},
+	}
+	tt := ui.NewTester(s.view, 480, 360)
+	if err := tt.Click("设置"); err != nil {
+		t.Fatalf("click the gear: %v", err)
+	}
+	return s, tt
+}
+
+func TestTheGearOpensTheSettingsDialogWithTheFiveTabs(t *testing.T) {
+	s, tt := dialog(t)
+	if !s.state.SettingsOpen {
+		t.Error("the dialog did not open")
+	}
+	for _, label := range []string{"通用", "补丁源", "Steam 设置", "Lua 配置", "关于", "关闭"} {
+		if !tt.HasText(label) {
+			t.Errorf("the dialog shows %q without %q", tt.Texts(), label)
+		}
+	}
+}
+
+func TestTheCloseButtonShutsTheDialog(t *testing.T) {
+	s, tt := dialog(t)
+	if err := tt.Click("关闭"); err != nil {
+		t.Fatalf("click close: %v", err)
+	}
+	if s.state.SettingsOpen {
+		t.Error("the dialog stayed open")
+	}
+	if tt.HasText("补丁源") {
+		t.Errorf("the dialog is still built: %q", tt.Texts())
+	}
+}
+
+func TestAClickOutsideTheDialogKeepsItOpen(t *testing.T) {
+	s, tt := dialog(t)
+	tt.ClickAt(2, 2)
+	if !s.state.SettingsOpen || !tt.HasText("关闭") {
+		t.Errorf("the dialog closed on a click outside: %q", tt.Texts())
+	}
+}
+
+func TestTheLanguageChoiceIsReportedAsSoonAsItIsPicked(t *testing.T) {
+	s, tt := dialog(t)
+	var picked []app.Language
+	s.actions.SetLanguage = func(language app.Language) { picked = append(picked, language) }
+
+	if err := tt.Click("英语"); err != nil {
+		t.Fatalf("click the English segment: %v", err)
+	}
+	if !slices.Equal(picked, []app.Language{app.LanguageEnglish}) {
+		t.Errorf("picked %v, want the English preference", picked)
+	}
+	if err := tt.Click("简体中文"); err != nil {
+		t.Fatalf("click the Chinese segment: %v", err)
+	}
+	if !slices.Equal(picked, []app.Language{app.LanguageEnglish, app.LanguageChinese}) {
+		t.Errorf("picked %v, want the Chinese preference second", picked)
+	}
+}
+
+func TestTheSteamTabCommitsThePathOnEnter(t *testing.T) {
+	s, tt := dialog(t)
+	var committed []string
+	s.actions.CommitPath = func(raw string) bool {
+		committed = append(committed, raw)
+		return true
+	}
+
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatalf("open the Steam tab: %v", err)
+	}
+	if err := tt.Click("Steam 安装路径"); err != nil {
+		t.Fatalf("focus the path field: %v", err)
+	}
+	tt.Type(`D:\Steam`)
+	tt.Key(0, ui.KeyEnter)
+
+	if !slices.Equal(committed, []string{`D:\Steam`}) {
+		t.Errorf("committed %v, want the typed path once", committed)
+	}
+	if s.state.PathError {
+		t.Error("an accepted path left the inline error on")
+	}
+}
+
+func TestARejectedPathShowsTheInlineError(t *testing.T) {
+	s, tt := dialog(t)
+	s.actions.CommitPath = func(string) bool { return false }
+
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Steam 安装路径"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type(`D:\Nope`)
+	tt.Key(0, ui.KeyEnter)
+
+	if !s.state.PathError {
+		t.Error("a rejected path left the field without an error")
+	}
+	if !tt.HasText("目录不存在或无法读取") {
+		t.Errorf("texts %q, want the inline error", tt.Texts())
+	}
+}
+
+func TestTheSteamTabCommitsWhenTheFieldLosesFocus(t *testing.T) {
+	s, tt := dialog(t)
+	var committed []string
+	s.actions.CommitPath = func(raw string) bool {
+		committed = append(committed, raw)
+		return true
+	}
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Steam 安装路径"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type(`D:\Steam`)
+	if err := tt.Click("浏览…"); err != nil {
+		t.Fatalf("click browse: %v", err)
+	}
+
+	if !slices.Contains(committed, `D:\Steam`) {
+		t.Errorf("committed %v, the draft was lost when the field lost focus", committed)
+	}
+}
+
+func TestTheSteamTabCommitsBeforeTheTabChanges(t *testing.T) {
+	s, tt := dialog(t)
+	var committed []string
+	s.actions.CommitPath = func(raw string) bool {
+		committed = append(committed, raw)
+		return true
+	}
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Steam 安装路径"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type(`D:\Steam`)
+	if err := tt.Click("通用"); err != nil {
+		t.Fatalf("switch to the General tab: %v", err)
+	}
+
+	if s.state.Tab != int(app.TabGeneral) {
+		t.Fatalf("the tab is %d, want General", s.state.Tab)
+	}
+	if !slices.Contains(committed, `D:\Steam`) {
+		t.Errorf("committed %v, the draft was lost when the tab changed", committed)
+	}
+}
+
+func TestTheSteamTabKeepsTheTypedDraftWhileTheDialogMovesBetweenTabs(t *testing.T) {
+	s, tt := dialog(t)
+	s.actions.CommitPath = func(string) bool { return false }
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Steam 安装路径"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type(`D:\Steam`)
+	if err := tt.Click("关于"); err != nil {
+		t.Fatal(err)
+	}
+	if s.state.PathDraft != `D:\Steam` {
+		t.Errorf("the draft is %q, want the typed path", s.state.PathDraft)
+	}
+}
+
+func TestBrowseAsksTheAppForADirectory(t *testing.T) {
+	s, tt := dialog(t)
+	asked := 0
+	s.actions.Browse = func() { asked++ }
+
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("浏览…"); err != nil {
+		t.Fatalf("click browse: %v", err)
+	}
+	if asked != 1 {
+		t.Errorf("browse was asked %d times, want once", asked)
+	}
+}
+
+func TestTheDialogKeepsTheTabItWasLeftOn(t *testing.T) {
+	s, tt := dialog(t)
+	if err := tt.Click("Lua 配置"); err != nil {
+		t.Fatal(err)
+	}
+	if s.state.Tab != int(app.TabLua) {
+		t.Fatalf("the tab is %d, want the Lua tab", s.state.Tab)
+	}
+	if err := tt.Click("关闭"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("设置"); err != nil {
+		t.Fatal(err)
+	}
+	if s.state.Tab != int(app.TabLua) {
+		t.Errorf("the dialog reopened on tab %d, want the remembered Lua tab", s.state.Tab)
+	}
+}
+
+func TestTheSetupScreenOffersSettingsOnTheSteamTab(t *testing.T) {
+	s := &screen{facts: app.Facts{Locale: "zh-CN", NeedsSetup: true}}
+	tt := ui.NewTester(s.view, 480, 360)
+	if !tt.HasText("尚未完成设置") {
+		t.Fatalf("texts %q, want the setup notice", tt.Texts())
+	}
+	if tt.HasText("未应用") {
+		t.Errorf("texts %q, the setup screen shows the main state", tt.Texts())
+	}
+	if err := tt.Click("打开设置"); err != nil {
+		t.Fatalf("click open settings: %v", err)
+	}
+	if !s.state.SettingsOpen || s.state.Tab != int(app.TabSteam) {
+		t.Errorf("settings open = %v on tab %d, want the Steam tab", s.state.SettingsOpen, s.state.Tab)
+	}
+}
+
+func TestTheCloseButtonStaysVisibleWhileTheContentScrolls(t *testing.T) {
+	s, tt := dialog(t)
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Wheel(240, 200, 0, -400)
+	if !tt.HasText("关闭") {
+		t.Fatalf("texts %q, the close button scrolled out of the dialog", tt.Texts())
+	}
+	if err := tt.Click("关闭"); err != nil {
+		t.Fatalf("click close after scrolling: %v", err)
+	}
+	if s.state.SettingsOpen {
+		t.Error("the dialog stayed open")
+	}
+}
+
+func TestTheDialogFitsTheSmallestWindowTheAppAllows(t *testing.T) {
+	s := &screen{facts: app.Facts{Locale: "zh-CN"}}
+	s.actions = view.Actions{
+		SetLanguage: func(app.Language) {},
+		CommitPath:  func(string) bool { return true },
+		Browse:      func() {},
+	}
+	tt := ui.NewTester(s.view, 320, 280)
+	if err := tt.Click("设置"); err != nil {
+		t.Fatalf("click the gear: %v", err)
+	}
+	if err := tt.Click("关闭"); err != nil {
+		t.Fatalf("the close button is out of reach at the smallest window: %v", err)
+	}
+	if s.state.SettingsOpen {
+		t.Error("the dialog stayed open")
+	}
+}
+
+func TestTheEscapeKeyDoesNotCloseTheDialog(t *testing.T) {
+	s, tt := dialog(t)
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if !s.state.SettingsOpen {
+		t.Error("Escape closed the settings dialog")
+	}
+	if !tt.HasText("关闭") {
+		t.Fatalf("texts %q, the dialog is gone", tt.Texts())
 	}
 }

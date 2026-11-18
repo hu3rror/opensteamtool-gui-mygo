@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"opensteamtool-gui-mygo/internal/app"
@@ -93,3 +94,49 @@ func TestDeploymentNeedsASteamRoot(t *testing.T) {
 type everything struct{}
 
 func (everything) IsFile(string) bool { return true }
+
+func TestTheLanguagePreferenceResolvesAgainstTheLocale(t *testing.T) {
+	tests := []struct {
+		preference app.Language
+		locale     string
+		want       app.Lang
+	}{
+		{app.LanguageAuto, "zh-Hans", app.Chinese},
+		{app.LanguageAuto, "en-GB", app.English},
+		{app.LanguageAuto, "", app.English},
+		{app.LanguageChinese, "en-US", app.Chinese},
+		{app.LanguageEnglish, "zh-CN", app.English},
+	}
+	for _, test := range tests {
+		if got := test.preference.Resolve(test.locale); got != test.want {
+			t.Errorf("%v resolved against %q = %v, want %v", test.preference, test.locale, got, test.want)
+		}
+	}
+}
+
+func TestTheDerivedScreenCarriesTheResolvedLanguage(t *testing.T) {
+	view := app.Derive(app.Facts{Language: app.LanguageChinese, Locale: "en-US"})
+	if view.Lang != app.Chinese {
+		t.Errorf("the screen reads %v, want Chinese", view.Lang)
+	}
+	view = app.Derive(app.Facts{Language: app.LanguageAuto, Locale: "zh-CN"})
+	if view.Lang != app.Chinese {
+		t.Errorf("an auto preference on a Chinese locale reads %v", view.Lang)
+	}
+}
+
+func TestTheSettingsTabsAreInAFixedOrder(t *testing.T) {
+	want := []app.Tab{app.TabGeneral, app.TabPatchSource, app.TabSteam, app.TabLua, app.TabAbout}
+	if got := app.Tabs(); !slices.Equal(got, want) {
+		t.Errorf("tabs = %v, want %v", got, want)
+	}
+}
+
+func TestAnUnreadableConfigAsksForSetup(t *testing.T) {
+	if view := app.Derive(app.Facts{NeedsSetup: true}); !view.NeedsSetup {
+		t.Error("an unreadable config does not ask for setup")
+	}
+	if view := app.Derive(app.Facts{Language: app.LanguageAuto}); view.NeedsSetup {
+		t.Error("a readable config asks for setup")
+	}
+}

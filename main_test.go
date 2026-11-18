@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"opensteamtool-gui-mygo/internal/app"
+	"opensteamtool-gui-mygo/internal/config"
 	"opensteamtool-gui-mygo/internal/rt"
 )
 
@@ -20,8 +21,12 @@ func shown(t *testing.T, s *session) []string {
 
 func noSleep(time.Duration) {}
 
+func newTestSession(host rt.Runtime, root string) *session {
+	return newSession(host, noSleep, "zh-CN", config.Config{SteamPath: root, Language: app.LanguageAuto}, true)
+}
+
 func TestWindowShowsTheDerivedScreenAndFollowsTheLanguage(t *testing.T) {
-	s := &session{facts: app.Facts{Lang: app.Chinese}}
+	s := &session{facts: app.Facts{Language: app.LanguageChinese, Locale: "zh-CN"}}
 
 	chinese := ui.NewTester(s.view, 480, 360)
 	if !slices.Contains(chinese.Texts(), "未应用") {
@@ -31,7 +36,7 @@ func TestWindowShowsTheDerivedScreenAndFollowsTheLanguage(t *testing.T) {
 		t.Fatalf("texts = %q, want the invalid path explanation", chinese.Texts())
 	}
 
-	s.facts.Lang = app.English
+	s.facts.Language = app.LanguageEnglish
 	english := ui.NewTester(s.view, 480, 360)
 	if !slices.Contains(english.Texts(), "Not applied") {
 		t.Fatalf("texts = %q, want Not applied", english.Texts())
@@ -44,7 +49,7 @@ func TestARealSteamDirectoryWithTheLayoutReadsAsApplied(t *testing.T) {
 		writeFile(t, filepath.Join(steam, name))
 	}
 
-	s := &session{facts: factsFor(app.Chinese, steam, rt.OS{})}
+	s := &session{facts: factsFor(app.LanguageChinese, "zh-CN", steam, rt.OS{})}
 	if !slices.Contains(shown(t, s), "已应用") {
 		t.Fatalf("texts = %q, want 已应用", shown(t, s))
 	}
@@ -54,7 +59,7 @@ func TestARealSteamDirectoryWithoutTheLayoutReadsAsNotApplied(t *testing.T) {
 	steam := t.TempDir()
 	writeFile(t, filepath.Join(steam, "steam.exe"))
 
-	s := &session{facts: factsFor(app.Chinese, steam, rt.OS{})}
+	s := &session{facts: factsFor(app.LanguageChinese, "zh-CN", steam, rt.OS{})}
 	texts := shown(t, s)
 	if !slices.Contains(texts, "未应用") {
 		t.Fatalf("texts = %q, want 未应用", texts)
@@ -84,7 +89,7 @@ func TestTheTrayRestartClosesThenStarts(t *testing.T) {
 		}
 		host.Procs = append(host.Procs, rt.Process{PID: call.PID, Exe: call.Exe})
 	}
-	s := newSession(app.Chinese, root, host, noSleep)
+	s := newTestSession(host, root)
 	frames := 0
 	s.frame = func() { frames++ }
 
@@ -119,7 +124,7 @@ func TestTheTrayRestartClosesThenStarts(t *testing.T) {
 
 func TestARequestWhileBusyIsDroppedWithoutAQueue(t *testing.T) {
 	host, root := steamHost(t, false)
-	s := newSession(app.Chinese, root, host, noSleep)
+	s := newTestSession(host, root)
 	s.mu.Lock()
 	if !s.gate.Try(app.BusyApplyPatch) {
 		t.Fatal("the gate was busy")
@@ -152,7 +157,7 @@ func TestARequestWhileBusyIsDroppedWithoutAQueue(t *testing.T) {
 
 func TestThePollFollowsASteamProcess(t *testing.T) {
 	host, root := steamHost(t, false)
-	s := newSession(app.Chinese, root, host, noSleep)
+	s := newTestSession(host, root)
 	if !slices.Contains(shown(t, s), "Steam 未运行") {
 		t.Fatalf("texts = %q, want the stopped slot", shown(t, s))
 	}
@@ -180,7 +185,7 @@ func TestThePollFollowsASteamProcess(t *testing.T) {
 func TestTheCloseFailureIsRecordedAndTheStageClears(t *testing.T) {
 	host, root := steamHost(t, true)
 	host.OnTerminate = func(int) {}
-	s := newSession(app.Chinese, root, host, noSleep)
+	s := newTestSession(host, root)
 	if !s.restartSteam() {
 		t.Fatal("the restart was refused while the gate was idle")
 	}
@@ -204,7 +209,7 @@ func TestTheCloseFailureIsRecordedAndTheStageClears(t *testing.T) {
 func TestAStartWithoutTheSteamProgramIsRecorded(t *testing.T) {
 	root := t.TempDir()
 	host := &rt.Fake{Dirs: map[string]bool{root: true}}
-	s := newSession(app.Chinese, root, host, noSleep)
+	s := newTestSession(host, root)
 
 	if !s.restartSteam() {
 		t.Fatal("the start was refused while the gate was idle")
@@ -224,5 +229,249 @@ func writeFile(t *testing.T, path string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestACommittedSteamPathSurvivesARestart(t *testing.T) {
+	dir := t.TempDir()
+	steam := t.TempDir()
+	writeFile(t, filepath.Join(steam, "steam.exe"))
+	host := &rt.Fake{Dirs: map[string]bool{steam: true}}
+
+	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true)
+	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
+	if !s.commitSteamPath(steam) {
+		t.Fatal("a readable directory was refused")
+	}
+
+	cfg, readable, err := config.Load(dir, host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !readable || cfg.SteamPath != steam {
+		t.Fatalf("config = %+v readable = %v, want the committed path", cfg, readable)
+	}
+
+	restarted := newSession(host, noSleep, "zh-CN", cfg, readable)
+	texts := shown(t, restarted)
+	if restarted.uiState.PathDraft != steam {
+		t.Fatalf("draft = %q, want the committed path", restarted.uiState.PathDraft)
+	}
+	if slices.Contains(texts, "Steam 路径无效") {
+		t.Fatalf("texts = %q, the committed path is valid", texts)
+	}
+}
+
+func TestACommittedPathRefreshesTheDeploymentState(t *testing.T) {
+	steam := t.TempDir()
+	for _, name := range []string{"steam.exe", "OpenSteamTool.dll", "xinput1_4.dll", "dwmapi.dll"} {
+		writeFile(t, filepath.Join(steam, name))
+	}
+	s := newSession(rt.OS{}, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true)
+	s.persist = func(config.Config) error { return nil }
+
+	if !slices.Contains(shown(t, s), "Steam 路径无效") {
+		t.Fatalf("texts = %q, want an unset path first", shown(t, s))
+	}
+	if !s.commitSteamPath(steam) {
+		t.Fatal("a readable directory was refused")
+	}
+	if facts := s.snapshot(); facts.Deployment != app.Applied {
+		t.Fatalf("deployment = %v, want the committed path applied", facts.Deployment)
+	}
+	if !slices.Contains(shown(t, s), "已应用") {
+		t.Fatalf("texts = %q, want the committed path applied on the main screen", shown(t, s))
+	}
+}
+
+func TestAPathThatCannotBeReadIsRefused(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "not-there")
+	unreadable := t.TempDir()
+	host := &rt.Fake{Dirs: map[string]bool{unreadable: true}, Unreadable: map[string]bool{unreadable: true}}
+
+	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true)
+	writes := 0
+	s.persist = func(config.Config) error {
+		writes++
+		return nil
+	}
+
+	if s.commitSteamPath(missing) {
+		t.Fatal("a directory that does not exist was taken")
+	}
+	if s.commitSteamPath(unreadable) {
+		t.Fatal("a directory that cannot be read was taken")
+	}
+	if facts := s.snapshot(); facts.SteamPath != "" || facts.SteamPathValid {
+		t.Fatalf("facts = %+v, want the path unchanged", facts)
+	}
+	if writes != 0 {
+		t.Fatalf("the config was written %d times, want none", writes)
+	}
+}
+
+func TestAnEmptyPathIsAcceptedAsUnset(t *testing.T) {
+	dir := t.TempDir()
+	s := newTestSession(&rt.Fake{}, t.TempDir())
+	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
+
+	if !s.commitSteamPath("  ") {
+		t.Fatal("an empty path was refused")
+	}
+	cfg, readable, err := config.Load(dir, &rt.Fake{})
+	if err != nil || !readable {
+		t.Fatalf("load = %+v readable = %v err = %v", cfg, readable, err)
+	}
+	if cfg.SteamPath != "" {
+		t.Fatalf("saved path = %q, want it unset", cfg.SteamPath)
+	}
+	if facts := s.snapshot(); facts.SteamPathValid || facts.Deployment != app.NotApplied {
+		t.Fatalf("facts = %+v, want an unset path", facts)
+	}
+}
+
+func TestTheLanguageAppliesAtOnceAndIsRemembered(t *testing.T) {
+	dir := t.TempDir()
+	host := &rt.Fake{}
+	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true)
+	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
+	var titles []string
+	s.retitle = func(title string) { titles = append(titles, title) }
+
+	if !slices.Contains(shown(t, s), "未应用") {
+		t.Fatalf("texts = %q, want the Chinese screen", shown(t, s))
+	}
+	s.actions.SetLanguage(app.LanguageEnglish)
+	if !slices.Contains(shown(t, s), "Not applied") {
+		t.Fatalf("texts = %q, want the English screen", shown(t, s))
+	}
+	if !slices.Equal(titles, []string{"OpenSteamTool Manager"}) {
+		t.Fatalf("titles = %q, want the window retitled once", titles)
+	}
+
+	cfg, readable, err := config.Load(dir, host)
+	if err != nil || !readable {
+		t.Fatalf("load = %+v readable = %v err = %v", cfg, readable, err)
+	}
+	if cfg.Language != app.LanguageEnglish {
+		t.Fatalf("saved language = %d, want the explicit choice", cfg.Language)
+	}
+	restarted := newSession(host, noSleep, "zh-CN", cfg, readable)
+	if !slices.Contains(shown(t, restarted), "Not applied") {
+		t.Fatalf("texts = %q, the explicit choice must beat the Chinese locale", shown(t, restarted))
+	}
+}
+
+func TestAnUnreadableConfigAsksForSetup(t *testing.T) {
+	s := newSession(&rt.Fake{}, noSleep, "zh-CN", config.Config{}, false)
+	texts := shown(t, s)
+	if !slices.Contains(texts, "尚未完成设置") {
+		t.Fatalf("texts = %q, want the setup notice", texts)
+	}
+	if !slices.Contains(texts, "打开设置") {
+		t.Fatalf("texts = %q, want the way into the settings", texts)
+	}
+	if slices.Contains(texts, "未应用") {
+		t.Fatalf("texts = %q, the main screen must wait for the setup", texts)
+	}
+}
+
+func TestCommittingAPathLeavesTheSetupScreenBehind(t *testing.T) {
+	dir := t.TempDir()
+	steam := t.TempDir()
+	host := &rt.Fake{Dirs: map[string]bool{steam: true}}
+	s := newSession(host, noSleep, "zh-CN", config.Config{}, false)
+	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
+
+	if !slices.Contains(shown(t, s), "尚未完成设置") {
+		t.Fatalf("texts = %q, want the setup screen first", shown(t, s))
+	}
+	if !s.actions.CommitPath(steam) {
+		t.Fatal("a readable directory was refused")
+	}
+
+	texts := shown(t, s)
+	if slices.Contains(texts, "尚未完成设置") {
+		t.Fatalf("texts = %q, the setup screen must clear", texts)
+	}
+	if !slices.Contains(texts, "未应用") {
+		t.Fatalf("texts = %q, want the main screen", texts)
+	}
+	cfg, readable, err := config.Load(dir, host)
+	if err != nil || !readable {
+		t.Fatalf("load = %+v readable = %v err = %v", cfg, readable, err)
+	}
+	if cfg.SteamPath != steam {
+		t.Fatalf("saved path = %q, want the committed one", cfg.SteamPath)
+	}
+}
+
+func TestBrowseCommitsThePickedDirectoryOnTheUIThread(t *testing.T) {
+	dir := t.TempDir()
+	steam := t.TempDir()
+	host := &rt.Fake{Dirs: map[string]bool{steam: true}, Picked: steam}
+	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true)
+	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
+	hops := 0
+	s.onUI = func(fn func()) {
+		hops++
+		fn()
+	}
+
+	s.pickSteamPath("")
+
+	if hops != 1 {
+		t.Fatalf("the pick hopped to the UI thread %d times, want once", hops)
+	}
+	if host.PickStart != "" {
+		t.Fatalf("the dialog started at %q, want the unset path", host.PickStart)
+	}
+	if facts := s.snapshot(); facts.SteamPath != steam || !facts.SteamPathValid {
+		t.Fatalf("facts = %+v, want the picked path", facts)
+	}
+	cfg, readable, err := config.Load(dir, host)
+	if err != nil || !readable || cfg.SteamPath != steam {
+		t.Fatalf("load = %+v readable = %v err = %v", cfg, readable, err)
+	}
+}
+
+func TestARepeatedCommitDoesNotWriteAgain(t *testing.T) {
+	steam := t.TempDir()
+	host := &rt.Fake{Dirs: map[string]bool{steam: true}}
+	s := newTestSession(host, "")
+	writes := 0
+	s.persist = func(config.Config) error {
+		writes++
+		return nil
+	}
+
+	if !s.actions.CommitPath(steam) {
+		t.Fatal("a readable directory was refused")
+	}
+	if !s.actions.CommitPath(" " + steam + " ") {
+		t.Fatal("the same directory, trimmed, was refused")
+	}
+	if writes != 1 {
+		t.Fatalf("the config was written %d times, want once", writes)
+	}
+}
+
+func TestAStaleSavedPathRoutesToSetupWithThePathKept(t *testing.T) {
+	dir := t.TempDir()
+	gone := filepath.Join(t.TempDir(), "gone")
+	if err := config.Save(dir, config.Config{SteamPath: gone, Language: app.LanguageChinese}); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, readable, err := config.Load(dir, &rt.Fake{})
+	if err == nil {
+		t.Fatal("a saved path that is not a directory came back without a reason")
+	}
+	s := newSession(&rt.Fake{}, noSleep, "zh-CN", cfg, readable)
+	if !slices.Contains(shown(t, s), "尚未完成设置") {
+		t.Fatalf("texts = %q, want the setup screen", shown(t, s))
+	}
+	if s.uiState.PathDraft != gone {
+		t.Fatalf("draft = %q, want the saved path for the Steam tab", s.uiState.PathDraft)
 	}
 }

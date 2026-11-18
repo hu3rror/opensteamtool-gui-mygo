@@ -110,3 +110,51 @@ func processExe(osRuntime rt.OS, pid int) (string, bool) {
 	}
 	return "", false
 }
+
+func TestOSReadsADirectoryOnlyWhenItCanListIt(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "steam.exe")
+	if err := os.WriteFile(file, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	osRuntime := rt.OS{}
+	if !osRuntime.IsReadableDir(dir) {
+		t.Errorf("%q is not readable", dir)
+	}
+	if osRuntime.IsReadableDir(file) {
+		t.Errorf("the file %q reads as a readable directory", file)
+	}
+	if osRuntime.IsReadableDir(filepath.Join(dir, "missing")) {
+		t.Error("a missing directory reads as readable")
+	}
+}
+
+func TestTheFakeKeepsADirectoryUnreadableWhenToldTo(t *testing.T) {
+	fake := rt.Fake{
+		Dirs:       map[string]bool{`C:\Steam`: true, `C:\Locked`: true},
+		Unreadable: map[string]bool{`C:\Locked`: true},
+	}
+	if !fake.IsReadableDir(`C:\Steam`) {
+		t.Error("a given directory is not readable")
+	}
+	if fake.IsReadableDir(`C:\Locked`) {
+		t.Error("the locked directory reads as readable")
+	}
+	if fake.IsReadableDir(`C:\Missing`) {
+		t.Error("a path the fake was not given reads as readable")
+	}
+}
+
+func TestTheFakePicksTheDirectoryItWasGiven(t *testing.T) {
+	fake := &rt.Fake{Picked: `C:\Steam`}
+	got, err := fake.PickDirectory("Steam directory", `C:\`)
+	if err != nil {
+		t.Fatalf("PickDirectory: %v", err)
+	}
+	if got != `C:\Steam` {
+		t.Errorf("picked %q, want the given directory", got)
+	}
+	if fake.PickStart != `C:\` {
+		t.Errorf("the dialog started at %q", fake.PickStart)
+	}
+}

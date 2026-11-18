@@ -19,6 +19,38 @@ func LangFor(locale string) Lang {
 	return English
 }
 
+type Language int
+
+const (
+	LanguageAuto Language = iota
+	LanguageChinese
+	LanguageEnglish
+)
+
+func (l Language) Resolve(locale string) Lang {
+	switch l {
+	case LanguageChinese:
+		return Chinese
+	case LanguageEnglish:
+		return English
+	}
+	return LangFor(locale)
+}
+
+type Tab int
+
+const (
+	TabGeneral Tab = iota
+	TabPatchSource
+	TabSteam
+	TabLua
+	TabAbout
+)
+
+func Tabs() []Tab {
+	return []Tab{TabGeneral, TabPatchSource, TabSteam, TabLua, TabAbout}
+}
+
 type MainState int
 
 const (
@@ -148,7 +180,10 @@ func DeploymentOf(layout Layout, entry string, root string, files Files) Deploym
 }
 
 type Facts struct {
-	Lang            Lang
+	Language        Language
+	Locale          string
+	NeedsSetup      bool
+	SteamPath       string
 	SteamPathValid  bool
 	SteamRunning    bool
 	Deployment      Deployment
@@ -160,13 +195,14 @@ type Facts struct {
 
 type View struct {
 	Lang        Lang
+	NeedsSetup  bool
 	MainState   MainState
 	Explanation Explanation
 	Status      Status
 }
 
 func Derive(f Facts) View {
-	v := View{Lang: f.Lang, MainState: mainStateOf(f), Status: Status{SteamRunning: f.SteamRunning, Result: f.Result}}
+	v := View{Lang: f.Language.Resolve(f.Locale), NeedsSetup: f.NeedsSetup, MainState: mainStateOf(f), Status: Status{SteamRunning: f.SteamRunning, Result: f.Result}}
 	if _, ok := Stage(f.Busy); ok {
 		v.Status.Busy = f.Busy
 	}

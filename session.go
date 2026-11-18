@@ -8,46 +8,78 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"opensteamtool-gui-mygo/internal/app"
+	"opensteamtool-gui-mygo/internal/config"
 	"opensteamtool-gui-mygo/internal/rt"
 	"opensteamtool-gui-mygo/internal/steam"
 	"opensteamtool-gui-mygo/internal/view"
 )
 
 type session struct {
-	steamPath string
-	host      rt.Runtime
-	client    *steam.Client
+	host    rt.Runtime
+	client  *steam.Client
+	persist func(config.Config) error
+	onUI    func(func())
+
+	uiState view.State
+	actions view.Actions
 
 	mu    sync.Mutex
 	facts app.Facts
+	cfg   config.Config
 	gate  app.Gate
 
-	frame func()
+	frame   func()
+	retitle func(string)
 }
 
-func newSession(lang app.Lang, steamPath string, host rt.Runtime, sleep func(time.Duration)) *session {
-	return &session{
-		steamPath: steamPath,
-		host:      host,
-		client:    steam.New(host, sleep),
-		facts:     factsFor(lang, steamPath, host),
+func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg config.Config, readable bool) *session {
+	s := &session{
+		host:   host,
+		client: steam.New(host, sleep),
+		cfg:    cfg,
+		frame:  func() {},
+		onUI:   func(fn func()) { fn() },
 	}
+	s.facts = factsFor(cfg.Language, locale, cfg.SteamPath, host)
+	s.facts.NeedsSetup = !readable
+	s.actions = view.Actions{
+		SetLanguage: s.setLanguage,
+		CommitPath:  s.commitSteamPath,
+		Browse:      s.browseSteamPath,
+	}
+	return s
 }
 
 func (s *session) view(c *ui.Context) {
-	view.Main(c, app.Derive(s.snapshot()))
+	facts := s.snapshot()
+	if !s.uiState.SettingsOpen {
+		s.syncSettings(facts)
+	}
+	view.Main(c, app.Derive(facts), &s.uiState, s.actions)
+}
+
+func (s *session) syncSettings(facts app.Facts) {
+	s.uiState.PathDraft = facts.SteamPath
+	s.uiState.PathError = false
+	s.uiState.PathFocused = false
+	s.uiState.Language = int(facts.Language)
 }
 
 func (s *session) snapshot() app.Facts {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	facts := s.facts
+	facts := s.factsWithoutGate()
 	facts.Busy = s.gate.Busy()
 	return facts
 }
 
+func (s *session) factsWithoutGate() app.Facts {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.facts
+}
+
 func (s *session) refresh() bool {
-	running, err := steam.Running(s.host, s.steamPath)
+	facts := s.factsWithoutGate()
+	running, err := steam.Running(s.host, facts.SteamPath)
 	if err != nil {
 		return false
 	}
@@ -58,26 +90,17 @@ func (s *session) refresh() bool {
 	return changed
 }
 
-func (s *session) watch(interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for range ticker.C {
-		if s.refresh() {
-			s.draw()
-		}
-	}
-}
-
 func (s *session) restartSteam() bool {
 	if !s.take(app.BusyStopSteam) {
 		return false
 	}
+	root := s.factsWithoutGate().SteamPath
 	result := app.NoResult
-	if err := s.client.Stop(s.steamPath); err != nil {
+	if err := s.client.Stop(root); err != nil {
 		result = app.CloseSteamFailed
 	} else {
 		s.advance(app.BusyStartSteam)
-		result = startResult(s.client.Start(s.steamPath), app.SteamRestarted)
+		result = startResult(s.client.Start(root), app.SteamRestarted)
 	}
 	s.done(result)
 	return true
@@ -100,7 +123,7 @@ func (s *session) advance(kind app.Busy) {
 }
 
 func (s *session) done(result app.Result) {
-	running, err := steam.Running(s.host, s.steamPath)
+	running, err := steam.Running(s.host, s.factsWithoutGate().SteamPath)
 	s.mu.Lock()
 	s.gate.Release()
 	if result != app.NoResult {

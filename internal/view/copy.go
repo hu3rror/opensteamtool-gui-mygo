@@ -25,6 +25,26 @@ const (
 	steamMissing       key = "未找到 steam.exe"
 	closeSteamFailed   key = "关闭 Steam 失败"
 	startSteamFailed   key = "启动 Steam 失败"
+	settings           key = "设置"
+	tabGeneral         key = "通用"
+	tabPatchSource     key = "补丁源"
+	tabSteam           key = "Steam 设置"
+	tabLua             key = "Lua 配置"
+	tabAbout           key = "关于"
+	languageRow        key = "语言"
+	languageAuto       key = "跟随系统"
+	languageChinese    key = "简体中文"
+	languageEnglish    key = "英语"
+	steamPathRow       key = "Steam 安装路径"
+	steamPathHint      key = "选择 steam.exe 所在的文件夹"
+	steamPathError     key = "目录不存在或无法读取"
+	browse             key = "浏览…"
+	closeButton        key = "关闭"
+	steamCfgNote       key = "steam.cfg 已锁定 Steam 客户端自动更新"
+	steamDialogTitle   key = "选择 Steam 目录"
+	setupNotice        key = "尚未完成设置"
+	setupHint          key = "请在设置中选择 Steam 安装目录"
+	openSettings       key = "打开设置"
 )
 
 var copyTable = map[key]string{
@@ -48,6 +68,26 @@ var copyTable = map[key]string{
 	steamMissing:       "steam.exe not found",
 	closeSteamFailed:   "Failed to close Steam",
 	startSteamFailed:   "Failed to start Steam",
+	settings:           "Settings",
+	tabGeneral:         "General",
+	tabPatchSource:     "Patch source",
+	tabSteam:           "Steam",
+	tabLua:             "Lua configuration",
+	tabAbout:           "About",
+	languageRow:        "Language",
+	languageAuto:       "Follow system",
+	languageChinese:    "Chinese (simplified)",
+	languageEnglish:    "English",
+	steamPathRow:       "Steam installation path",
+	steamPathHint:      "Choose the folder that holds steam.exe",
+	steamPathError:     "The directory does not exist or cannot be read",
+	browse:             "Browse…",
+	closeButton:        "Close",
+	steamCfgNote:       "steam.cfg already locks the Steam client's automatic updates",
+	steamDialogTitle:   "Choose the Steam directory",
+	setupNotice:        "Setup is not complete",
+	setupHint:          "Choose the Steam installation folder in the settings",
+	openSettings:       "Open settings",
 }
 
 var mainStateKeys = map[app.MainState]key{
@@ -58,6 +98,22 @@ var mainStateKeys = map[app.MainState]key{
 	app.MainRemoving:      removing,
 	app.MainStartingSteam: startingSteam,
 	app.MainStoppingSteam: stoppingSteam,
+}
+var tabCopies = map[app.Tab]key{
+	app.TabGeneral:     tabGeneral,
+	app.TabPatchSource: tabPatchSource,
+	app.TabSteam:       tabSteam,
+	app.TabLua:         tabLua,
+	app.TabAbout:       tabAbout,
+}
+
+func tabLabels(l app.Lang) []string {
+	tabs := app.Tabs()
+	labels := make([]string, len(tabs))
+	for i, tab := range tabs {
+		labels[i] = text(l, tabCopies[tab])
+	}
+	return labels
 }
 
 type explanation struct{ title, body key }
@@ -93,4 +149,5 @@ func text(l app.Lang, k key) string {
 
 func Title(l app.Lang) string { return text(l, windowTitle) }
 
-func RestartSteam(l app.Lang) string { return text(l, restartSteam) }
+func RestartSteam(l app.Lang) string   { return text(l, restartSteam) }
+func SteamDirectory(l app.Lang) string { return text(l, steamDialogTitle) }

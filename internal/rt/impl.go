@@ -1,8 +1,12 @@
 package rt
 
 import (
+	"errors"
+	"io"
 	"os"
 	"slices"
+
+	"github.com/egoist/mygo"
 )
 
 func (OS) IsDir(path string) bool {
@@ -15,7 +19,32 @@ func (OS) IsFile(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
+func (OS) IsReadableDir(path string) bool {
+	dir, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = dir.Close() }()
+	_, err = dir.Readdirnames(1)
+	return err == nil || errors.Is(err, io.EOF)
+}
+
+func (OS) PickDirectory(title string, start string) (string, error) {
+	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: title, DefaultPath: start, Directory: true})
+	if err != nil || len(paths) == 0 {
+		return "", err
+	}
+	return paths[0], nil
+}
+
 func (f Fake) IsDir(path string) bool { return f.Dirs[path] }
+
+func (f Fake) IsReadableDir(path string) bool { return f.Dirs[path] && !f.Unreadable[path] }
+
+func (f *Fake) PickDirectory(_ string, start string) (string, error) {
+	f.PickStart = start
+	return f.Picked, nil
+}
 
 func (f Fake) IsFile(path string) bool { return f.Files[path] }
 

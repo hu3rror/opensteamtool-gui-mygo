@@ -3,12 +3,14 @@ package main
 import (
 	_ "embed"
 	"log"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"opensteamtool-gui-mygo/internal/app"
+	"opensteamtool-gui-mygo/internal/config"
 	"opensteamtool-gui-mygo/internal/rt"
 	"opensteamtool-gui-mygo/internal/steam"
 	"opensteamtool-gui-mygo/internal/view"
@@ -17,30 +19,34 @@ import (
 //go:embed resources/icon.png
 var trayIcon []byte
 
-func startupLang() app.Lang {
+func locale() string {
 	langs := mygo.App.PreferredLanguages()
 	if len(langs) == 0 {
-		return app.English
+		return ""
 	}
-	return app.LangFor(langs[0])
+	return langs[0]
 }
 
-func factsFor(lang app.Lang, steamPath string, host rt.Runtime) app.Facts {
-	facts := app.Facts{Lang: lang, SteamPathValid: host.IsDir(steamPath)}
-	if running, err := steam.Running(host, steamPath); err == nil {
-		facts.SteamRunning = running
+func toolDir() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "."
 	}
-	if facts.SteamPathValid {
-		facts.Deployment = app.DeploymentOf(app.OpenSteamToolLayout(), "", steamPath, host)
-	}
-	return facts
+	return filepath.Dir(exe)
 }
 
 func main() {
-	s := newSession(startupLang(), "", rt.OS{}, time.Sleep)
+	dir := toolDir()
+	cfg, readable, err := config.Load(dir, rt.OS{})
+	if err != nil {
+		log.Printf("read config: %v", err)
+	}
+	s := newSession(rt.OS{}, time.Sleep, locale(), cfg, readable)
+	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
+
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
-			Title:     view.Title(s.snapshot().Lang),
+			Title:     view.Title(s.resolvedLanguage()),
 			Width:     480,
 			Height:    360,
 			MinWidth:  320,
@@ -49,12 +55,14 @@ func main() {
 			Content:   ui.View(s.view),
 		})
 		s.frame = win.Invalidate
-		facts := s.snapshot()
+		s.onUI = win.Update
+		s.retitle = win.SetTitle
+		lang := s.resolvedLanguage()
 		if _, err := mygo.NewTray(mygo.TrayOptions{
 			Icon:    trayIcon,
-			ToolTip: view.Title(facts.Lang),
+			ToolTip: view.Title(lang),
 			Menu: mygo.NewMenu([]*mygo.MenuItem{{
-				Label: view.RestartSteam(facts.Lang),
+				Label: view.RestartSteam(lang),
 				Click: func(*mygo.MenuItem, *mygo.Window) { go s.restartSteam() },
 			}}),
 		}); err != nil {

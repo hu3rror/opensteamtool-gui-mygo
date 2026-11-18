@@ -93,3 +93,20 @@ func TestEveryStatusBarSlotResolvesThroughTheTable(t *testing.T) {
 		}
 	}
 }
+
+func TestEveryTabCarriesALabel(t *testing.T) {
+	tabs := app.Tabs()
+	if got := tabLabels(app.Chinese); len(got) != len(tabs) {
+		t.Fatalf("the strip has %d labels for %d tabs", len(got), len(tabs))
+	}
+	for _, tab := range tabs {
+		k, ok := tabCopies[tab]
+		if !ok {
+			t.Errorf("tab %d has no copy", tab)
+			continue
+		}
+		if _, ok := copyTable[k]; !ok {
+			t.Errorf("tab %d uses %q, which has no English", tab, k)
+		}
+	}
+}
