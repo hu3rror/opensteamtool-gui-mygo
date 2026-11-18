@@ -125,6 +125,7 @@ func SameVersion(one, other string) bool {
 type Member struct {
 	Name      string
 	Published []string
+	Keep      bool
 }
 
 type EntryMember struct {
@@ -152,6 +153,17 @@ func (m Manifest) Required(entry Entry) []Member {
 	return required
 }
 
+func (m Manifest) RootFiles() []string {
+	names := []string{m.Payload.Name, m.Loader.Name}
+	for _, member := range m.Entries {
+		names = append(names, member.Member.Name)
+	}
+	for _, member := range m.Optional {
+		names = append(names, member.Name)
+	}
+	return names
+}
+
 var openSteamToolManifest = Manifest{
 	Payload: Member{Name: "OpenSteamTool.dll", Published: []string{"OpenSteamTool.dll"}},
 	Loader:  Member{Name: "xinput1_4.dll", Published: []string{"xinput1_4.dll"}},
@@ -171,7 +183,7 @@ var steamDaddyManifest = Manifest{
 	},
 	Optional: []Member{
 		{Name: "cloud_redirect.dll", Published: []string{"cloud_redirect.dll"}},
-		{Name: "steamdaddy.toml", Published: []string{"steamdaddy.toml"}},
+		{Name: "steamdaddy.toml", Published: []string{"steamdaddy.toml"}, Keep: true},
 	},
 	Forbidden: []string{"dwmapi.dll"},
 	Lua:       "config/stplug-in",
@@ -183,6 +195,13 @@ func (l Layout) Manifest() Manifest {
 		return steamDaddyManifest
 	}
 	return openSteamToolManifest
+}
+
+func (l Layout) Other() Layout {
+	if l == LayoutSteamDaddy {
+		return LayoutOpenSteamTool
+	}
+	return LayoutSteamDaddy
 }
 
 func (l Layout) Has(entry Entry) bool {

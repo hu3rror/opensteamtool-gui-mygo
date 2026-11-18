@@ -29,13 +29,15 @@ type State struct {
 }
 
 type Actions struct {
-	SetLanguage func(app.Language)
-	CommitPath  func(raw string) bool
-	Browse      func()
-	ApplySource func(draft source.Draft) (source.Source, bool)
-	SetEntry    func(source.Entry)
-	CheckUpdate func()
-	Download    func()
+	SetLanguage    func(app.Language)
+	CommitPath     func(raw string) bool
+	Browse         func()
+	ApplySource    func(draft source.Draft) (source.Source, bool)
+	SetEntry       func(source.Entry)
+	CheckUpdate    func()
+	Download       func()
+	Apply          func()
+	RemoveConflict func()
 }
 
 func Main(c *ui.Context, v app.View, st *State, a Actions) {
@@ -75,6 +77,7 @@ func mainScreen(c *ui.Context, v app.View, st *State, a Actions) {
 		ui.Text(c, text(v.Lang, copy.title))
 		ui.Text(c, text(v.Lang, copy.body)).TextColor(t.TextMuted)
 	}
+	actionRow(c, v, a)
 	updateSlot(c, v, a)
 	ui.Row(c).Gap(t.Space(4)).Children(func() {
 		ui.Text(c, text(v.Lang, steamWord(v.Status.SteamRunning))).Role(ui.RoleStatus)
@@ -83,6 +86,23 @@ func mainScreen(c *ui.Context, v app.View, st *State, a Actions) {
 		}
 		if copy, ok := resultCopies[v.Status.Result]; ok {
 			ui.Text(c, text(v.Lang, copy)).Role(ui.RoleStatus)
+		}
+	})
+}
+
+func actionRow(c *ui.Context, v app.View, a Actions) {
+	t := c.Theme()
+	blocked := v.Status.Busy != app.Idle || v.UpdateInFlight != app.Idle
+	ui.Row(c).Gap(t.Space(4)).Children(func() {
+		if ui.Button(c, text(v.Lang, applyAndStart)).Disabled(blocked).Clicked() {
+			a.Apply()
+		}
+		if v.Conflict == "" {
+			return
+		}
+		ui.Text(c, conflictText(v.Lang, v.Conflict)).Role(ui.RoleStatus)
+		if ui.Button(c, text(v.Lang, removeAndDeploy)).Disabled(blocked).Clicked() {
+			a.RemoveConflict()
 		}
 	})
 }

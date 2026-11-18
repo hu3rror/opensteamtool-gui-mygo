@@ -147,3 +147,13 @@ func TestAnUnreadableConfigAsksForSetup(t *testing.T) {
 		t.Error("a readable config asks for setup")
 	}
 }
+
+func TestTheConflictReachesTheScreen(t *testing.T) {
+	view := app.Derive(app.Facts{Conflict: "version.dll"})
+	if view.Conflict != "version.dll" {
+		t.Errorf("the screen carries %q, want the conflicting file", view.Conflict)
+	}
+	if blank := app.Derive(app.Facts{}); blank.Conflict != "" {
+		t.Errorf("a screen without a conflict carries %q", blank.Conflict)
+	}
+}

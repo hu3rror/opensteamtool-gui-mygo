@@ -9,6 +9,10 @@ type Runtime interface {
 	IsDir(path string) bool
 	IsFile(path string) bool
 	IsReadableDir(path string) bool
+	MkdirAll(path string) error
+	WriteFile(path string, data []byte) error
+	Rename(from string, to string) error
+	Remove(path string) error
 	Processes() ([]Process, error)
 	Spawn(exe string, dir string, args ...string) (int, error)
 	Terminate(pid int) error
@@ -36,9 +40,24 @@ type Fake struct {
 	FetchError error
 	Fetched    []string
 
+	Mkdirs  []string
+	Writes  []Write
+	Renames []Move
+	Removes []string
+
 	Procs       []Process
 	Spawned     []Launch
 	Killed      []int
 	OnSpawn     func(Launch)
 	OnTerminate func(int)
+}
+
+type Write struct {
+	Path string
+	Data []byte
+}
+
+type Move struct {
+	From string
+	To   string
 }

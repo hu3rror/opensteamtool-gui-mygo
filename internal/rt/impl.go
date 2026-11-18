@@ -33,6 +33,34 @@ func (OS) IsReadableDir(path string) bool {
 	return err == nil || errors.Is(err, io.EOF)
 }
 
+func (OS) MkdirAll(path string) error {
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		return fmt.Errorf("make %s: %w", path, err)
+	}
+	return nil
+}
+
+func (OS) WriteFile(path string, data []byte) error {
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	return nil
+}
+
+func (OS) Rename(from string, to string) error {
+	if err := os.Rename(from, to); err != nil {
+		return fmt.Errorf("rename %s to %s: %w", from, to, err)
+	}
+	return nil
+}
+
+func (OS) Remove(path string) error {
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("remove %s: %w", path, err)
+	}
+	return nil
+}
+
 var httpClient = &http.Client{
 	Timeout: 30 * time.Second,
 	Transport: &http.Transport{
@@ -75,6 +103,40 @@ func (f *Fake) PickDirectory(_ string, start string) (string, error) {
 }
 
 func (f Fake) IsFile(path string) bool { return f.Files[path] }
+
+func (f *Fake) MkdirAll(path string) error {
+	f.Mkdirs = append(f.Mkdirs, path)
+	if f.Dirs == nil {
+		f.Dirs = map[string]bool{}
+	}
+	f.Dirs[path] = true
+	return nil
+}
+
+func (f *Fake) WriteFile(path string, data []byte) error {
+	f.Writes = append(f.Writes, Write{Path: path, Data: data})
+	if f.Files == nil {
+		f.Files = map[string]bool{}
+	}
+	f.Files[path] = true
+	return nil
+}
+
+func (f *Fake) Rename(from string, to string) error {
+	f.Renames = append(f.Renames, Move{From: from, To: to})
+	delete(f.Files, from)
+	if f.Files == nil {
+		f.Files = map[string]bool{}
+	}
+	f.Files[to] = true
+	return nil
+}
+
+func (f *Fake) Remove(path string) error {
+	f.Removes = append(f.Removes, path)
+	delete(f.Files, path)
+	return nil
+}
 
 func (f *Fake) Get(url string) ([]byte, error) {
 	f.Fetched = append(f.Fetched, url)

@@ -1,6 +1,8 @@
 package view
 
 import (
+	"strings"
+
 	"opensteamtool-gui-mygo/internal/app"
 	"opensteamtool-gui-mygo/internal/source"
 )
@@ -23,11 +25,17 @@ const (
 	steamRunning             key = "Steam 正在运行"
 	steamStopped             key = "Steam 未运行"
 	restartSteam             key = "重启 Steam"
+	applyAndStart            key = "应用补丁并启动 Steam"
+	removeAndDeploy          key = "移除并部署"
+	conflictFound            key = "检测到 %s，需先移除"
 	steamStarted             key = "Steam 已启动"
 	steamRestarted           key = "Steam 已重启"
+	patchApplied             key = "补丁已应用"
 	steamMissing             key = "未找到 steam.exe"
+	pathUnset                key = "请先指定有效的 Steam 安装路径"
 	closeSteamFailed         key = "关闭 Steam 失败"
 	startSteamFailed         key = "启动 Steam 失败"
+	deploymentFailed         key = "部署失败"
 	settings                 key = "设置"
 	tabGeneral               key = "通用"
 	tabPatchSource           key = "补丁源"
@@ -97,6 +105,12 @@ var copyTable = map[key]string{
 	restartSteam:             "Restart Steam",
 	steamStarted:             "Steam started",
 	steamRestarted:           "Steam restarted",
+	patchApplied:             "Patch applied",
+	pathUnset:                "Set a valid Steam installation path first",
+	deploymentFailed:         "Deployment failed",
+	applyAndStart:            "Apply patch and start Steam",
+	removeAndDeploy:          "Remove it and deploy",
+	conflictFound:            "Found %s, which must be removed first",
 	steamMissing:             "steam.exe not found",
 	closeSteamFailed:         "Failed to close Steam",
 	startSteamFailed:         "Failed to start Steam",
@@ -210,6 +224,9 @@ var entryLabels = map[source.Entry]key{
 var resultCopies = map[app.Result]key{
 	app.SteamStarted:        steamStarted,
 	app.SteamRestarted:      steamRestarted,
+	app.PatchApplied:        patchApplied,
+	app.PathUnset:           pathUnset,
+	app.DeploymentFailed:    deploymentFailed,
 	app.MissingSteamProgram: steamMissing,
 	app.CloseSteamFailed:    closeSteamFailed,
 	app.StartSteamFailed:    startSteamFailed,
@@ -237,6 +254,10 @@ func text(l app.Lang, k key) string {
 		}
 	}
 	return string(k)
+}
+
+func conflictText(l app.Lang, name string) string {
+	return strings.Replace(text(l, conflictFound), "%s", name, 1)
 }
 
 func Title(l app.Lang) string { return text(l, windowTitle) }

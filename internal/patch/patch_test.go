@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"opensteamtool-gui-mygo/internal/patch"
@@ -278,6 +279,41 @@ func TestTheCacheShowsAnEmptyAndThenACompleteState(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, patch.VersionFile)); err != nil {
 		t.Errorf("the version record is missing: %v", err)
+	}
+}
+
+func TestLoadReadsTheRequiredMembersAndSkipsTheAbsentOptionals(t *testing.T) {
+	dir := t.TempDir()
+	held := []patch.File{
+		{Name: "SteamDaddy.dll", Data: []byte("payload")},
+		{Name: "xinput1_4.dll", Data: []byte("loader")},
+		{Name: "version.dll", Data: []byte("entry")},
+	}
+	if err := patch.Install(dir, held, "v1"); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	files, err := patch.Load(dir, source.LayoutSteamDaddy, source.EntryDefault)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := names(files); !slices.Equal(got, []string{"SteamDaddy.dll", "xinput1_4.dll", "version.dll"}) {
+		t.Errorf("loaded %q, want the required members only", got)
+	}
+
+	withOptional := append(slices.Clone(held), patch.File{Name: "cloud_redirect.dll", Data: []byte("optional")})
+	if err := patch.Install(dir, withOptional, "v2"); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	files, err = patch.Load(dir, source.LayoutSteamDaddy, source.EntryDefault)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := names(files); len(got) != 4 || !slices.Contains(got, "cloud_redirect.dll") {
+		t.Errorf("loaded %q, want the optional member the cache holds", got)
+	}
+
+	if _, err := patch.Load(t.TempDir(), source.LayoutSteamDaddy, source.EntryDefault); !errors.Is(err, patch.ErrMissingMember) {
+		t.Errorf("Load on an empty cache: %v, want a missing member", err)
 	}
 }
 

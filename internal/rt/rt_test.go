@@ -207,3 +207,64 @@ func TestTheFakeAnswersFromItsResponses(t *testing.T) {
 		t.Error("the offline fake answered anyway")
 	}
 }
+
+func TestOSMakesWritesRenamesAndRemovesFiles(t *testing.T) {
+	dir := t.TempDir()
+	osRuntime := rt.OS{}
+	lua := filepath.Join(dir, "config", "lua")
+	if err := osRuntime.MkdirAll(lua); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if !osRuntime.IsDir(lua) {
+		t.Errorf("%q did not become a directory", lua)
+	}
+	temp := filepath.Join(dir, "dwmapi.dll.tmp")
+	if err := osRuntime.WriteFile(temp, []byte("entry")); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	file := filepath.Join(dir, "dwmapi.dll")
+	if err := osRuntime.Rename(temp, file); err != nil {
+		t.Fatalf("Rename: %v", err)
+	}
+	if osRuntime.IsFile(temp) || !osRuntime.IsFile(file) {
+		t.Errorf("the rename left %q and %q", temp, file)
+	}
+	if err := osRuntime.Remove(file); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if osRuntime.IsFile(file) {
+		t.Errorf("%q survived the removal", file)
+	}
+}
+
+func TestTheFakeRecordsItsFileChanges(t *testing.T) {
+	fake := &rt.Fake{}
+	file := `C:\Steam\dwmapi.dll`
+	if err := fake.WriteFile(file+".tmp", []byte("entry")); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := fake.Rename(file+".tmp", file); err != nil {
+		t.Fatalf("Rename: %v", err)
+	}
+	if !fake.IsFile(file) || fake.IsFile(file+".tmp") {
+		t.Errorf("the rename left %v", fake.Files)
+	}
+	if len(fake.Writes) != 1 || fake.Writes[0].Path != file+".tmp" || string(fake.Writes[0].Data) != "entry" {
+		t.Errorf("wrote %+v", fake.Writes)
+	}
+	if !slices.Equal(fake.Renames, []rt.Move{{From: file + ".tmp", To: file}}) {
+		t.Errorf("renamed %+v", fake.Renames)
+	}
+	if err := fake.Remove(file); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if fake.IsFile(file) || !slices.Equal(fake.Removes, []string{file}) {
+		t.Errorf("removes %v with %v left", fake.Removes, fake.Files)
+	}
+	if err := fake.MkdirAll(`C:\Steam\config\lua`); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if !fake.IsDir(`C:\Steam\config\lua`) {
+		t.Errorf("mkdirs %v", fake.Mkdirs)
+	}
+}

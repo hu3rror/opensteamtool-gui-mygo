@@ -213,6 +213,34 @@ func TestTheLayoutsCarryTheirMembers(t *testing.T) {
 	}
 }
 
+func TestEachLayoutListsTheRootFilesItOwns(t *testing.T) {
+	openSteamTool := source.LayoutOpenSteamTool.Manifest().RootFiles()
+	want := []string{"OpenSteamTool.dll", "xinput1_4.dll", "dwmapi.dll", "version.dll"}
+	if !slices.Equal(openSteamTool, want) {
+		t.Errorf("the OpenSteamTool root files are %q, want %q", openSteamTool, want)
+	}
+	steamDaddy := source.LayoutSteamDaddy.Manifest().RootFiles()
+	for _, name := range []string{"SteamDaddy.dll", "version.dll", "steamdaddy.toml"} {
+		if !slices.Contains(steamDaddy, name) {
+			t.Errorf("the SteamDaddy root files %q miss %q", steamDaddy, name)
+		}
+	}
+	if slices.Contains(steamDaddy, "dwmapi.dll") {
+		t.Errorf("the SteamDaddy root files %q claim the file it forbids", steamDaddy)
+	}
+	for _, member := range source.LayoutSteamDaddy.Manifest().Optional {
+		if member.Keep != (member.Name == "steamdaddy.toml") {
+			t.Errorf("the optional member %q keeps %v", member.Name, member.Keep)
+		}
+	}
+	if source.LayoutOpenSteamTool.Other() != source.LayoutSteamDaddy {
+		t.Error("the OpenSteamTool layout does not name the SteamDaddy one as the other")
+	}
+	if source.LayoutSteamDaddy.Other() != source.LayoutOpenSteamTool {
+		t.Error("the SteamDaddy layout does not name the OpenSteamTool one as the other")
+	}
+}
+
 func TestTheEntryIsOfferedWhereTheSourceAndLayoutAllowIt(t *testing.T) {
 	official := source.Source{Key: source.KeyOfficial, Repository: "OpenSteam001/OpenSteamTool", Layout: source.LayoutOpenSteamTool}
 	community := source.Community()

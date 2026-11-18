@@ -838,3 +838,155 @@ func TestASourceChangeForgetsThePreviousCheck(t *testing.T) {
 		t.Error("a download was offered from the previous source's result")
 	}
 }
+
+func patchedSteam(t *testing.T, running bool) (*rt.Fake, *session, string) {
+	t.Helper()
+	host, root := steamHost(t, running)
+	host.OnSpawn = func(call rt.Launch) {
+		if slices.Equal(call.Args, []string{"-shutdown"}) {
+			host.Procs = nil
+			return
+		}
+		host.Procs = append(host.Procs, rt.Process{PID: call.PID, Exe: call.Exe})
+	}
+	host.Responses = map[string][]byte{
+		communityURL(): releaseBody("v1.2.0", "https://example.test/patch-release.zip"),
+		"https://example.test/patch-release.zip": zipped(t, map[string]string{
+			"OpenSteamTool.dll": "payload",
+			"xinput1_4.dll":     "loader",
+			"dwmapi.dll":        "entry",
+		}),
+	}
+	s := newTestSession(t, host, root)
+	runCommand(t, s, s.checkUpdate)
+	runCommand(t, s, s.downloadPatch)
+	return host, s, root
+}
+
+func TestApplyingThePatchDeploysLaunchesAndSnapshots(t *testing.T) {
+	host, s, root := patchedSteam(t, true)
+	manifest := filepath.Join(root, "package", "steam_client_win32.manifest")
+	if err := os.MkdirAll(filepath.Dir(manifest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifest, []byte("\"version\" \"1712345678\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runCommand(t, s, s.applyPatch)
+
+	facts := s.factsWithoutGate()
+	if facts.Result != app.PatchApplied || facts.Busy != app.Idle || facts.PatchFailed || facts.Conflict != "" {
+		t.Fatalf("facts = %+v, want an applied patch with an idle gate", facts)
+	}
+	if facts.Deployment != app.Applied || !facts.SteamRunning {
+		t.Errorf("facts = %+v, want the deployed patch and a running Steam", facts)
+	}
+	for _, name := range []string{"OpenSteamTool.dll", "xinput1_4.dll", "dwmapi.dll"} {
+		if !host.IsFile(filepath.Join(root, name)) {
+			t.Errorf("%s did not land in the Steam directory", name)
+		}
+	}
+	if len(host.Spawned) != 2 || !slices.Equal(host.Spawned[0].Args, []string{"-shutdown"}) || len(host.Spawned[1].Args) != 0 {
+		t.Fatalf("spawned %+v, want the shutdown signal then a bare start", host.Spawned)
+	}
+	want := config.DeploymentSnapshot{Source: source.KeyCommunity, Layout: source.LayoutOpenSteamTool, ClientBuild: "1712345678", PatchVersion: "v1.2.0"}
+	if s.config().Snapshot != want {
+		t.Errorf("the snapshot is %+v, want %+v", s.config().Snapshot, want)
+	}
+	if !slices.Contains(shown(t, s), "补丁已应用") {
+		t.Errorf("texts = %q, want the applied result", shown(t, s))
+	}
+}
+
+func TestApplyingWithoutASteamPathTouchesNothing(t *testing.T) {
+	host := &rt.Fake{}
+	s := newTestSession(t, host, "")
+
+	runCommand(t, s, s.applyPatch)
+
+	facts := s.factsWithoutGate()
+	if facts.Result != app.PathUnset || !facts.PatchFailed {
+		t.Fatalf("facts = %+v, want a refused apply with the failure flag", facts)
+	}
+	if len(host.Writes) != 0 || len(host.Mkdirs) != 0 || len(host.Spawned) != 0 {
+		t.Errorf("a refused apply wrote %v, made %v and spawned %v", host.Writes, host.Mkdirs, host.Spawned)
+	}
+}
+
+func TestApplyingWithoutADownloadedPatchTouchesNothing(t *testing.T) {
+	host, root := steamHost(t, true)
+	s := newTestSession(t, host, root)
+
+	runCommand(t, s, s.applyPatch)
+
+	facts := s.factsWithoutGate()
+	if facts.Result != app.MissingMember || !facts.PatchFailed {
+		t.Fatalf("facts = %+v, want the missing member with the failure flag", facts)
+	}
+	if len(host.Spawned) != 0 || len(host.Writes) != 0 {
+		t.Errorf("a refused apply spawned %v and wrote %v", host.Spawned, host.Writes)
+	}
+}
+
+func TestApplyingWithoutSteamProgramStopsNothing(t *testing.T) {
+	host, s, root := patchedSteam(t, true)
+	delete(host.Files, filepath.Join(root, "steam.exe"))
+
+	runCommand(t, s, s.applyPatch)
+
+	facts := s.factsWithoutGate()
+	if facts.Result != app.MissingSteamProgram || !facts.PatchFailed {
+		t.Fatalf("facts = %+v, want the missing program with the failure flag", facts)
+	}
+	if len(host.Spawned) != 0 {
+		t.Errorf("spawned %+v, want Steam left alone", host.Spawned)
+	}
+}
+
+func TestAConflictingFileBlocksThenTheRemovalDeploys(t *testing.T) {
+	host, s, root := patchedSteam(t, false)
+	stale := filepath.Join(root, "version.dll")
+	host.Files[stale] = true
+
+	runCommand(t, s, s.applyPatch)
+
+	facts := s.factsWithoutGate()
+	if facts.Conflict != "version.dll" || !facts.PatchFailed || facts.Result != app.DeploymentFailed {
+		t.Fatalf("facts = %+v, want a blocked deploy naming the conflicting file", facts)
+	}
+	if !host.IsFile(stale) || host.IsFile(filepath.Join(root, "dwmapi.dll")) {
+		t.Error("the blocked deploy changed the Steam directory")
+	}
+	if !slices.Contains(shown(t, s), "检测到 version.dll，需先移除") || !slices.Contains(shown(t, s), "移除并部署") {
+		t.Errorf("texts = %q, want the conflict and its removal", shown(t, s))
+	}
+
+	runCommand(t, s, s.removeConflictAndDeploy)
+
+	facts = s.factsWithoutGate()
+	if facts.Result != app.PatchApplied || facts.PatchFailed || facts.Conflict != "" {
+		t.Fatalf("facts = %+v, want the retried deploy applied", facts)
+	}
+	if host.IsFile(stale) || !host.IsFile(filepath.Join(root, "dwmapi.dll")) {
+		t.Error("the retry did not replace the conflicting file with the entry")
+	}
+}
+
+func TestAFailedLaunchKeepsTheSnapshotAndTheFailuresApart(t *testing.T) {
+	host, s, root := patchedSteam(t, false)
+	host.OnSpawn = func(rt.Launch) {}
+
+	runCommand(t, s, s.applyPatch)
+
+	facts := s.factsWithoutGate()
+	if facts.Result != app.StartSteamFailed || !facts.PatchFailed {
+		t.Fatalf("facts = %+v, want the failed launch with the failure flag", facts)
+	}
+	if s.config().Snapshot != (config.DeploymentSnapshot{}) {
+		t.Errorf("a failed launch wrote the snapshot %+v", s.config().Snapshot)
+	}
+	if !host.IsFile(filepath.Join(root, "dwmapi.dll")) {
+		t.Error("the deploy was rolled back by the failed launch")
+	}
+}

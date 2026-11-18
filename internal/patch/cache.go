@@ -1,7 +1,9 @@
 package patch
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -110,6 +112,29 @@ func Inspect(dir string, layout source.Layout, entry source.Entry) State {
 	}
 	state.Complete = held
 	return state
+}
+func Load(dir string, layout source.Layout, entry source.Entry) ([]File, error) {
+	manifest := layout.Manifest()
+	required := manifest.Required(entry)
+	files := make([]File, 0, len(required)+len(manifest.Optional))
+	for _, member := range required {
+		data, err := os.ReadFile(filepath.Join(dir, member.Name))
+		if err != nil {
+			return nil, fmt.Errorf("%w: %s", ErrMissingMember, member.Name)
+		}
+		files = append(files, File{Name: member.Name, Data: data})
+	}
+	for _, member := range manifest.Optional {
+		data, err := os.ReadFile(filepath.Join(dir, member.Name))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", member.Name, err)
+		}
+		files = append(files, File{Name: member.Name, Data: data})
+	}
+	return files, nil
 }
 
 var clientBuild = regexp.MustCompile(`(?m)^\s*"version"\s+"([^"]*)"`)

@@ -33,10 +33,10 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 	invalid := []string{"Steam 路径无效", "请在设置中指定有效的 Steam 安装路径"}
 	notDownloaded := []string{"补丁未下载", "请点击「检查补丁更新」下载新版本"}
 	with := func(word string, rest ...string) []string {
-		return append([]string{word, "Steam 未运行", "检查补丁更新", "设置"}, rest...)
+		return append([]string{word, "Steam 未运行", "应用补丁并启动 Steam", "检查补丁更新", "设置"}, rest...)
 	}
 	busyWith := func(stage string) []string {
-		return []string{stage, stage, "Steam 未运行", "检查补丁更新", "设置"}
+		return []string{stage, stage, "Steam 未运行", "应用补丁并启动 Steam", "检查补丁更新", "设置"}
 	}
 	tests := []struct {
 		name  string
@@ -56,12 +56,12 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 		{
 			name:  "steam running",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, SteamRunning: true},
-			texts: []string{"已应用", "Steam 正在运行", "检查补丁更新", "设置"},
+			texts: []string{"已应用", "Steam 正在运行", "应用补丁并启动 Steam", "检查补丁更新", "设置"},
 		},
 		{
 			name:  "the last result follows the steam slot",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, SteamRunning: true, Result: app.SteamRestarted},
-			texts: []string{"已应用", "Steam 正在运行", "Steam 已重启", "检查补丁更新", "设置"},
+			texts: []string{"已应用", "Steam 正在运行", "Steam 已重启", "应用补丁并启动 Steam", "检查补丁更新", "设置"},
 		},
 		{
 			name:  "a failed close lands in the result slot",
@@ -72,6 +72,21 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 			name:  "a missing steam.exe lands in the result slot",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Result: app.MissingSteamProgram},
 			texts: with("已应用", "未找到 steam.exe"),
+		},
+		{
+			name:  "an applied patch lands in the result slot",
+			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Result: app.PatchApplied},
+			texts: with("已应用", "补丁已应用"),
+		},
+		{
+			name:  "a refused apply without a path lands in the result slot",
+			facts: app.Facts{SteamPathValid: false, Result: app.PathUnset},
+			texts: append(with("未应用", "请先指定有效的 Steam 安装路径"), invalid...),
+		},
+		{
+			name:  "a failed deploy lands in the result slot",
+			facts: app.Facts{SteamPathValid: true, PatchDownloaded: true, Result: app.DeploymentFailed},
+			texts: with("未应用", "部署失败"),
 		},
 		{
 			name:  "invalid path",
@@ -116,12 +131,12 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 		{
 			name:  "update busy keeps the file fact",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.NotApplied, Busy: app.BusyCheckUpdate},
-			texts: []string{"未应用", "Steam 未运行", "检查中…", "检查补丁更新", "设置"},
+			texts: []string{"未应用", "Steam 未运行", "检查中…", "应用补丁并启动 Steam", "检查补丁更新", "设置"},
 		},
 		{
 			name:  "download busy keeps the file fact",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Busy: app.BusyDownloadPatch},
-			texts: []string{"已应用", "Steam 未运行", "检查补丁更新", "正在下载补丁…", "设置"},
+			texts: []string{"已应用", "Steam 未运行", "应用补丁并启动 Steam", "检查补丁更新", "正在下载补丁…", "设置"},
 		},
 		{
 			name:  "a failed apply outranks the file fact",
@@ -146,27 +161,27 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 		{
 			name:  "english applied",
 			facts: app.Facts{Language: app.LanguageEnglish, SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true},
-			texts: []string{"Applied", "Steam is not running", "Settings", "Check for patch updates"},
+			texts: []string{"Applied", "Steam is not running", "Settings", "Apply patch and start Steam", "Check for patch updates"},
 		},
 		{
 			name:  "english result",
 			facts: app.Facts{Language: app.LanguageEnglish, SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Result: app.StartSteamFailed},
-			texts: []string{"Applied", "Steam is not running", "Failed to start Steam", "Settings", "Check for patch updates"},
+			texts: []string{"Applied", "Steam is not running", "Failed to start Steam", "Settings", "Apply patch and start Steam", "Check for patch updates"},
 		},
 		{
 			name:  "english invalid path",
 			facts: app.Facts{Language: app.LanguageEnglish, SteamPathValid: false},
-			texts: []string{"Not applied", "Steam is not running", "Settings", "Steam path is invalid", "Check for patch updates", "Set a valid Steam installation path in settings"},
+			texts: []string{"Not applied", "Steam is not running", "Settings", "Steam path is invalid", "Apply patch and start Steam", "Check for patch updates", "Set a valid Steam installation path in settings"},
 		},
 		{
 			name:  "english patch failed",
 			facts: app.Facts{Language: app.LanguageEnglish, SteamPathValid: true, PatchDownloaded: true, PatchFailed: true},
-			texts: []string{"Patch failed to apply", "Steam is not running", "Settings", "Check for patch updates"},
+			texts: []string{"Patch failed to apply", "Steam is not running", "Settings", "Apply patch and start Steam", "Check for patch updates"},
 		},
 		{
 			name:  "english patch not downloaded",
 			facts: app.Facts{Language: app.LanguageEnglish, SteamPathValid: true},
-			texts: []string{"Not applied", "Steam is not running", "Settings", "Check for patch updates", "Patch not downloaded", "Click Check for patch updates to download a new version"},
+			texts: []string{"Not applied", "Steam is not running", "Settings", "Apply patch and start Steam", "Check for patch updates", "Patch not downloaded", "Click Check for patch updates to download a new version"},
 		},
 	}
 	for _, test := range tests {
@@ -574,5 +589,48 @@ func TestABusyCommandLeavesTheUpdateButtonsInert(t *testing.T) {
 	}
 	if ran != 0 {
 		t.Errorf("ran %d actions while another command was busy", ran)
+	}
+}
+
+func TestTheMainButtonRunsTheApply(t *testing.T) {
+	s := &screen{facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, PatchDownloaded: true, PatchComplete: true}}
+	ran := 0
+	s.actions = view.Actions{Apply: func() { ran++ }}
+	tt := ui.NewTester(s.view, 480, 360)
+	if err := tt.Click("应用补丁并启动 Steam"); err != nil {
+		t.Fatalf("click the main button: %v", err)
+	}
+	if ran != 1 {
+		t.Errorf("ran %d applies, want one", ran)
+	}
+
+	s.facts.Busy = app.BusyApplyPatch
+	tt.Frame()
+	if err := tt.Click("应用补丁并启动 Steam"); err != nil {
+		t.Fatalf("click the main button while busy: %v", err)
+	}
+	if ran != 1 {
+		t.Errorf("ran %d applies, the busy button is inert", ran)
+	}
+}
+
+func TestAConflictingFileOffersTheRemoval(t *testing.T) {
+	s := &screen{facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, PatchDownloaded: true, Conflict: "version.dll"}}
+	removed := 0
+	s.actions = view.Actions{RemoveConflict: func() { removed++ }}
+	tt := ui.NewTester(s.view, 480, 360)
+	if !tt.HasText("检测到 version.dll，需先移除") {
+		t.Fatalf("texts %q, want the conflicting file", tt.Texts())
+	}
+	if err := tt.Click("移除并部署"); err != nil {
+		t.Fatalf("click the removal: %v", err)
+	}
+	if removed != 1 {
+		t.Errorf("ran %d removals, want one", removed)
+	}
+
+	clear := &screen{facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, PatchDownloaded: true}}
+	if ui.NewTester(clear.view, 480, 360).HasText("移除并部署") {
+		t.Error("the removal is offered without a conflict")
 	}
 }

@@ -127,9 +127,12 @@ const (
 	NoResult Result = iota
 	SteamStarted
 	SteamRestarted
+	PatchApplied
+	PathUnset
 	MissingSteamProgram
 	CloseSteamFailed
 	StartSteamFailed
+	DeploymentFailed
 	Downloaded
 	NetworkFailed
 	NoAsset
@@ -201,6 +204,7 @@ type Facts struct {
 	PatchComplete   bool
 	PatchVersion    string
 	PatchFailed     bool
+	Conflict        string
 	OnlineVersion   string
 	UpdateChecked   bool
 	UpdateFailed    bool
@@ -216,13 +220,14 @@ type View struct {
 	MainState       MainState
 	Explanation     Explanation
 	Status          Status
+	Conflict        string
 	Update          Conclusion
 	DownloadOffered bool
 	UpdateInFlight  Busy
 }
 
 func Derive(f Facts) View {
-	v := View{Lang: f.Language.Resolve(f.Locale), NeedsSetup: f.NeedsSetup, MainState: mainStateOf(f), Status: Status{SteamRunning: f.SteamRunning, Result: f.Result}}
+	v := View{Lang: f.Language.Resolve(f.Locale), NeedsSetup: f.NeedsSetup, MainState: mainStateOf(f), Conflict: f.Conflict, Status: Status{SteamRunning: f.SteamRunning, Result: f.Result}}
 	v.Update, v.DownloadOffered = conclusionOf(f)
 	if _, ok := Stage(f.Busy); ok {
 		v.Status.Busy = f.Busy
