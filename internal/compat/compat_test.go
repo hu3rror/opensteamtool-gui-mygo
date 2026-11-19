@@ -418,3 +418,24 @@ func TestAnUnreadableCoreDllIsReportedAsALocalFailure(t *testing.T) {
 		t.Errorf("health = %v, want the missing core state", health)
 	}
 }
+
+func TestACachedSignatureCarriesAnUnreachableNetwork(t *testing.T) {
+	host, steam, client, ui := steamWithCores(t)
+	tool := t.TempDir()
+	for _, probe := range []struct{ channel, component, sha string }{
+		{"pattern", "steamclient", client},
+		{"pattern", "steamui", ui},
+		{"ipc", "steamclient", client},
+	} {
+		path := cacheFile(steam, probe.channel, probe.component, probe.sha)
+		host.Files[path] = true
+		host.Contents[path] = []byte("sig")
+	}
+	host.Answers = nil
+
+	round := compat.NewRound()
+	round.Accept(round.Start(steam), compat.Probes(host, steam, tool, nil))
+	if health := round.Snapshot().Health; health != app.HealthOfflineReady {
+		t.Fatalf("health = %v, want the cache carrying an unreachable network", health)
+	}
+}
