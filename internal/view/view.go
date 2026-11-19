@@ -29,15 +29,20 @@ type State struct {
 }
 
 type Actions struct {
-	SetLanguage    func(app.Language)
-	CommitPath     func(raw string) bool
-	Browse         func()
-	ApplySource    func(draft source.Draft) (source.Source, bool)
-	SetEntry       func(source.Entry)
-	CheckUpdate    func()
-	Download       func()
-	Apply          func()
-	RemoveConflict func()
+	SetLanguage         func(app.Language)
+	CommitPath          func(raw string) bool
+	Browse              func()
+	ApplySource         func(draft source.Draft) (source.Source, bool)
+	SetEntry            func(source.Entry)
+	CheckUpdate         func()
+	Download            func()
+	Apply               func()
+	RemoveConflict      func()
+	Uninstall           func()
+	ExitAndUninstall    func()
+	UninstallAndRestart func()
+	Confirm             func()
+	Cancel              func()
 }
 
 func Main(c *ui.Context, v app.View, st *State, a Actions) {
@@ -52,6 +57,7 @@ func Main(c *ui.Context, v app.View, st *State, a Actions) {
 	if st.SettingsOpen {
 		settingsDialog(c, v, st, a)
 	}
+	confirm(c, v, a)
 }
 
 func setup(c *ui.Context, v app.View, st *State) {
@@ -78,6 +84,7 @@ func mainScreen(c *ui.Context, v app.View, st *State, a Actions) {
 		ui.Text(c, text(v.Lang, copy.body)).TextColor(t.TextMuted)
 	}
 	actionRow(c, v, a)
+	secondaryRow(c, v, a)
 	updateSlot(c, v, a)
 	ui.Row(c).Gap(t.Space(4)).Children(func() {
 		ui.Text(c, text(v.Lang, steamWord(v.Status.SteamRunning))).Role(ui.RoleStatus)
@@ -105,6 +112,57 @@ func actionRow(c *ui.Context, v app.View, a Actions) {
 			a.RemoveConflict()
 		}
 	})
+}
+
+var secondaryLabels = map[app.SecondaryAction]key{
+	app.SecondaryUninstall:           uninstall,
+	app.SecondaryExitAndUninstall:    exitAndUninstall,
+	app.SecondaryUninstallAndRestart: uninstallAndRestart,
+}
+
+func secondaryRow(c *ui.Context, v app.View, a Actions) {
+	if len(v.Secondary) == 0 {
+		return
+	}
+	t := c.Theme()
+	busy := v.Status.Busy != app.Idle || v.UpdateInFlight != app.Idle
+	ui.Row(c).Gap(t.Space(4)).Children(func() {
+		for _, action := range v.Secondary {
+			if ui.Button(c, text(v.Lang, secondaryLabels[action])).Disabled(busy).Clicked() {
+				runSecondary(a, action)
+			}
+		}
+	})
+}
+
+func runSecondary(a Actions, action app.SecondaryAction) {
+	switch action {
+	case app.SecondaryExitAndUninstall:
+		a.ExitAndUninstall()
+	case app.SecondaryUninstallAndRestart:
+		a.UninstallAndRestart()
+	default:
+		a.Uninstall()
+	}
+}
+
+var pendingQuestions = map[app.Confirmation]key{
+	app.ConfirmExitRemove:       runningQuestion,
+	app.ConfirmRemoveAndRestart: runningQuestion,
+}
+
+func confirm(c *ui.Context, v app.View, a Actions) {
+	question, ok := pendingQuestions[v.Pending]
+	if !ok {
+		return
+	}
+	open := true
+	switch ui.AlertDialog(c, &open, text(v.Lang, confirmTitle), text(v.Lang, question), text(v.Lang, yes), text(v.Lang, no)) {
+	case 0:
+		a.Confirm()
+	case 1:
+		a.Cancel()
+	}
 }
 
 func updateSlot(c *ui.Context, v app.View, a Actions) {

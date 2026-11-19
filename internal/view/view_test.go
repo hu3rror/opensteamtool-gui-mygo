@@ -2,6 +2,7 @@ package view_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -38,6 +39,9 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 	busyWith := func(stage string) []string {
 		return []string{stage, stage, "Steam 未运行", "应用补丁并启动 Steam", "检查补丁更新", "设置"}
 	}
+	removal := []string{"卸载补丁", "卸载补丁并重启 Steam"}
+	exitRemoval := []string{"退出 Steam 并卸载补丁", "卸载补丁并重启 Steam"}
+	removalEN := []string{"Remove the patch", "Remove the patch and restart Steam"}
 	tests := []struct {
 		name  string
 		facts app.Facts
@@ -46,7 +50,7 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 		{
 			name:  "applied",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true},
-			texts: with("已应用"),
+			texts: with("已应用", removal...),
 		},
 		{
 			name:  "not applied",
@@ -56,27 +60,27 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 		{
 			name:  "steam running",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, SteamRunning: true},
-			texts: []string{"已应用", "Steam 正在运行", "应用补丁并启动 Steam", "检查补丁更新", "设置"},
+			texts: append([]string{"已应用", "Steam 正在运行", "应用补丁并启动 Steam", "检查补丁更新", "设置"}, exitRemoval...),
 		},
 		{
 			name:  "the last result follows the steam slot",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, SteamRunning: true, Result: app.SteamRestarted},
-			texts: []string{"已应用", "Steam 正在运行", "Steam 已重启", "应用补丁并启动 Steam", "检查补丁更新", "设置"},
+			texts: append([]string{"已应用", "Steam 正在运行", "Steam 已重启", "应用补丁并启动 Steam", "检查补丁更新", "设置"}, exitRemoval...),
 		},
 		{
 			name:  "a failed close lands in the result slot",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Result: app.CloseSteamFailed},
-			texts: with("已应用", "关闭 Steam 失败"),
+			texts: append(with("已应用", "关闭 Steam 失败"), removal...),
 		},
 		{
 			name:  "a missing steam.exe lands in the result slot",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Result: app.MissingSteamProgram},
-			texts: with("已应用", "未找到 steam.exe"),
+			texts: append(with("已应用", "未找到 steam.exe"), removal...),
 		},
 		{
 			name:  "an applied patch lands in the result slot",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Result: app.PatchApplied},
-			texts: with("已应用", "补丁已应用"),
+			texts: append(with("已应用", "补丁已应用"), removal...),
 		},
 		{
 			name:  "a refused apply without a path lands in the result slot",
@@ -116,17 +120,17 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 		{
 			name:  "uninstall busy shows its stage",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Busy: app.BusyUninstall},
-			texts: busyWith("正在卸载补丁…"),
+			texts: append(busyWith("正在卸载补丁…"), removal...),
 		},
 		{
 			name:  "start busy shows its stage",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Busy: app.BusyStartSteam},
-			texts: busyWith("正在启动 Steam…"),
+			texts: append(busyWith("正在启动 Steam…"), removal...),
 		},
 		{
 			name:  "stop busy shows its stage",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Busy: app.BusyStopSteam},
-			texts: busyWith("正在关闭 Steam…"),
+			texts: append(busyWith("正在关闭 Steam…"), removal...),
 		},
 		{
 			name:  "update busy keeps the file fact",
@@ -136,12 +140,12 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 		{
 			name:  "download busy keeps the file fact",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Busy: app.BusyDownloadPatch},
-			texts: []string{"已应用", "Steam 未运行", "应用补丁并启动 Steam", "检查补丁更新", "正在下载补丁…", "设置"},
+			texts: append([]string{"已应用", "Steam 未运行", "应用补丁并启动 Steam", "检查补丁更新", "正在下载补丁…", "设置"}, removal...),
 		},
 		{
 			name:  "a failed apply outranks the file fact",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, PatchFailed: true},
-			texts: with("补丁应用失败"),
+			texts: append(with("补丁应用失败"), removal...),
 		},
 		{
 			name:  "a failed apply keeps the path explanation",
@@ -156,17 +160,17 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 		{
 			name:  "busy outranks a failed apply",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchFailed: true, Busy: app.BusyApplyPatch},
-			texts: busyWith("正在应用补丁…"),
+			texts: append(busyWith("正在应用补丁…"), removal...),
 		},
 		{
 			name:  "english applied",
 			facts: app.Facts{Language: app.LanguageEnglish, SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true},
-			texts: []string{"Applied", "Steam is not running", "Settings", "Apply patch and start Steam", "Check for patch updates"},
+			texts: append([]string{"Applied", "Steam is not running", "Settings", "Apply patch and start Steam", "Check for patch updates"}, removalEN...),
 		},
 		{
 			name:  "english result",
 			facts: app.Facts{Language: app.LanguageEnglish, SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Result: app.StartSteamFailed},
-			texts: []string{"Applied", "Steam is not running", "Failed to start Steam", "Settings", "Apply patch and start Steam", "Check for patch updates"},
+			texts: append([]string{"Applied", "Steam is not running", "Failed to start Steam", "Settings", "Apply patch and start Steam", "Check for patch updates"}, removalEN...),
 		},
 		{
 			name:  "english invalid path",
@@ -642,5 +646,123 @@ func TestAConflictingFileOffersTheRemoval(t *testing.T) {
 	clear := &screen{facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, PatchDownloaded: true}}
 	if ui.NewTester(clear.view, 480, 360).HasText("移除并部署") {
 		t.Error("the removal is offered without a conflict")
+	}
+}
+
+func TestTheSecondaryButtonsFollowTheDeploymentAndSteam(t *testing.T) {
+	applied := app.Facts{Locale: "zh-CN", SteamPathValid: true, Deployment: app.Applied}
+	stopped := shown(t, applied)
+	for _, label := range []string{"卸载补丁", "卸载补丁并重启 Steam"} {
+		if !slices.Contains(stopped.Texts(), label) {
+			t.Errorf("texts %q, want %q", stopped.Texts(), label)
+		}
+	}
+	if slices.Contains(stopped.Texts(), "退出 Steam 并卸载补丁") {
+		t.Errorf("texts %q offer to exit a Steam that is not running", stopped.Texts())
+	}
+
+	running := applied
+	running.SteamRunning = true
+	shownRunning := shown(t, running)
+	for _, label := range []string{"退出 Steam 并卸载补丁", "卸载补丁并重启 Steam"} {
+		if !slices.Contains(shownRunning.Texts(), label) {
+			t.Errorf("texts %q, want %q", shownRunning.Texts(), label)
+		}
+	}
+	if slices.Contains(shownRunning.Texts(), "卸载补丁") {
+		t.Errorf("texts %q offer a removal that leaves the running Steam alone", shownRunning.Texts())
+	}
+
+	if notApplied := shown(t, app.Facts{Locale: "zh-CN", SteamPathValid: true}); slices.ContainsFunc(notApplied.Texts(), func(s string) bool { return strings.Contains(s, "卸载补丁") }) {
+		t.Errorf("texts %q offer a removal without an applied patch", notApplied.Texts())
+	}
+}
+
+func TestTheUninstallButtonsRunTheirActions(t *testing.T) {
+	s := &screen{facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, Deployment: app.Applied}}
+	var ran []string
+	s.actions = view.Actions{
+		Uninstall:           func() { ran = append(ran, "remove") },
+		UninstallAndRestart: func() { ran = append(ran, "restart") },
+	}
+	tt := ui.NewTester(s.view, 480, 360)
+	if err := tt.Click("卸载补丁"); err != nil {
+		t.Fatalf("click the removal: %v", err)
+	}
+	if err := tt.Click("卸载补丁并重启 Steam"); err != nil {
+		t.Fatalf("click the removal and restart: %v", err)
+	}
+
+	s.facts.SteamRunning = true
+	s.actions.ExitAndUninstall = func() { ran = append(ran, "exit") }
+	tt.Frame()
+	if err := tt.Click("退出 Steam 并卸载补丁"); err != nil {
+		t.Fatalf("click the exit and removal: %v", err)
+	}
+	if !slices.Equal(ran, []string{"remove", "restart", "exit"}) {
+		t.Errorf("ran %v, want the removal, then its restart, then the exit and removal", ran)
+	}
+}
+
+func TestABusyCommandLeavesTheUninstallButtonsInert(t *testing.T) {
+	s := &screen{facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, Deployment: app.Applied, Busy: app.BusyApplyPatch}}
+	ran := 0
+	s.actions = view.Actions{
+		Uninstall:           func() { ran++ },
+		UninstallAndRestart: func() { ran++ },
+	}
+	tt := ui.NewTester(s.view, 480, 360)
+	_ = tt.Click("卸载补丁")
+	_ = tt.Click("卸载补丁并重启 Steam")
+	if ran != 0 {
+		t.Errorf("ran %d removals while another command was busy", ran)
+	}
+}
+
+func TestTheConfirmDialogAsksABeforeTheUninstall(t *testing.T) {
+	s := &screen{facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, Deployment: app.Applied, SteamRunning: true, Pending: app.ConfirmExitRemove}}
+	var answered []string
+	s.actions = view.Actions{
+		Confirm: func() { answered = append(answered, "yes") },
+		Cancel:  func() { answered = append(answered, "no") },
+	}
+	tt := ui.NewTester(s.view, 480, 360)
+	for _, label := range []string{"确认", "Steam 正在运行。是否自动关闭 Steam 并继续？", "是", "否"} {
+		if !tt.HasText(label) {
+			t.Errorf("texts %q, want %q in the dialog", tt.Texts(), label)
+		}
+	}
+	if err := tt.Click("是"); err != nil {
+		t.Fatalf("click yes: %v", err)
+	}
+	tt.Frame()
+	if err := tt.Click("否"); err != nil {
+		t.Fatalf("click no: %v", err)
+	}
+	if !slices.Equal(answered, []string{"yes", "no"}) {
+		t.Errorf("answered %v, want the yes then the no", answered)
+	}
+}
+
+func TestTheConfirmDialogStaysUntilItIsAnswered(t *testing.T) {
+	s := &screen{facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, Deployment: app.Applied, SteamRunning: true, Pending: app.ConfirmRemoveAndRestart}}
+	answered := 0
+	s.actions = view.Actions{
+		Confirm: func() { answered++ },
+		Cancel:  func() { answered++ },
+	}
+	tt := ui.NewTester(s.view, 480, 360)
+	tt.ClickAt(2, 2)
+	tt.Frame()
+	if !tt.HasText("确认") {
+		t.Errorf("texts %q, the dialog closed on a click outside", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if !tt.HasText("确认") {
+		t.Errorf("texts %q, the dialog closed on Escape", tt.Texts())
+	}
+	if answered != 0 {
+		t.Errorf("answered %d times, want the question left open", answered)
 	}
 }

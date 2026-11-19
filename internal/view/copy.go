@@ -27,10 +27,19 @@ const (
 	restartSteam             key = "重启 Steam"
 	applyAndStart            key = "应用补丁并启动 Steam"
 	removeAndDeploy          key = "移除并部署"
+	uninstall                key = "卸载补丁"
+	uninstallAndRestart      key = "卸载补丁并重启 Steam"
+	exitAndUninstall         key = "退出 Steam 并卸载补丁"
+	confirmTitle             key = "确认"
+	runningQuestion          key = "Steam 正在运行。是否自动关闭 Steam 并继续？"
+	yes                      key = "是"
+	no                       key = "否"
 	conflictFound            key = "检测到 %s，需先移除"
 	steamStarted             key = "Steam 已启动"
 	steamRestarted           key = "Steam 已重启"
 	patchApplied             key = "补丁已应用"
+	patchRemoved             key = "已卸载补丁"
+	removalFailed            key = "卸载失败"
 	steamMissing             key = "未找到 steam.exe"
 	pathUnset                key = "请先指定有效的 Steam 安装路径"
 	closeSteamFailed         key = "关闭 Steam 失败"
@@ -106,10 +115,19 @@ var copyTable = map[key]string{
 	steamStarted:             "Steam started",
 	steamRestarted:           "Steam restarted",
 	patchApplied:             "Patch applied",
+	patchRemoved:             "Patch removed",
+	removalFailed:            "Removal failed",
 	pathUnset:                "Set a valid Steam installation path first",
 	deploymentFailed:         "Deployment failed",
 	applyAndStart:            "Apply patch and start Steam",
 	removeAndDeploy:          "Remove it and deploy",
+	uninstall:                "Remove the patch",
+	uninstallAndRestart:      "Remove the patch and restart Steam",
+	exitAndUninstall:         "Exit Steam and remove the patch",
+	confirmTitle:             "Confirm",
+	runningQuestion:          "Steam is running. Close Steam and continue?",
+	yes:                      "Yes",
+	no:                       "No",
 	conflictFound:            "Found %s, which must be removed first",
 	steamMissing:             "steam.exe not found",
 	closeSteamFailed:         "Failed to close Steam",
@@ -225,6 +243,8 @@ var resultCopies = map[app.Result]key{
 	app.SteamStarted:        steamStarted,
 	app.SteamRestarted:      steamRestarted,
 	app.PatchApplied:        patchApplied,
+	app.PatchRemoved:        patchRemoved,
+	app.RemovalFailed:       removalFailed,
 	app.PathUnset:           pathUnset,
 	app.DeploymentFailed:    deploymentFailed,
 	app.MissingSteamProgram: steamMissing,

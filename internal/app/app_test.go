@@ -158,6 +158,38 @@ func TestTheConflictReachesTheScreen(t *testing.T) {
 	}
 }
 
+func TestTheSecondaryRowFollowsTheDeploymentAndSteam(t *testing.T) {
+	applied := app.Facts{SteamPathValid: true, Deployment: app.Applied}
+	running := applied
+	running.SteamRunning = true
+	tests := []struct {
+		name  string
+		facts app.Facts
+		want  []app.SecondaryAction
+	}{
+		{name: "no path", facts: app.Facts{Deployment: app.Applied}},
+		{name: "not applied", facts: app.Facts{SteamPathValid: true}},
+		{name: "applied with Steam stopped", facts: applied, want: []app.SecondaryAction{app.SecondaryUninstall, app.SecondaryUninstallAndRestart}},
+		{name: "applied with Steam running", facts: running, want: []app.SecondaryAction{app.SecondaryExitAndUninstall, app.SecondaryUninstallAndRestart}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := app.Derive(test.facts).Secondary; !slices.Equal(got, test.want) {
+				t.Errorf("the secondary row is %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestAPendingConfirmationReachesTheScreen(t *testing.T) {
+	if view := app.Derive(app.Facts{Pending: app.ConfirmExitRemove}); view.Pending != app.ConfirmExitRemove {
+		t.Errorf("the screen carries %v, want the pending question", view.Pending)
+	}
+	if blank := app.Derive(app.Facts{}); blank.Pending != app.NoConfirmation {
+		t.Errorf("a screen without a question carries %v", blank.Pending)
+	}
+}
+
 func TestThePrimaryActionNeedsAPathAndCompleteFiles(t *testing.T) {
 	ready := app.Facts{SteamPathValid: true, PatchDownloaded: true, PatchComplete: true}
 	tests := []struct {

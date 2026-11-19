@@ -44,6 +44,19 @@ func Write(host Files, plan Plan) error {
 	return writeAll(host, plan)
 }
 
+func Uninstall(host Files, root string, layout source.Layout) error {
+	for _, name := range layout.Manifest().RootFiles() {
+		target := filepath.Join(root, name)
+		if !host.IsFile(target) {
+			continue
+		}
+		if err := host.Remove(target); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func conflicting(host Files, layout source.Layout, entry source.Entry, root string) (string, bool) {
 	manifest := layout.Manifest()
 	for _, member := range manifest.Entries {

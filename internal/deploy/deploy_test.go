@@ -206,3 +206,30 @@ func TestAFailedRenameLeavesTheOldFileAndTakesTheTempAway(t *testing.T) {
 		}
 	}
 }
+
+func TestAnUninstallTakesTheListedRootFilesAndNothingElse(t *testing.T) {
+	root := `C:\Steam`
+	held := map[string]bool{}
+	for _, name := range []string{"OpenSteamTool.dll", "xinput1_4.dll", "dwmapi.dll", "version.dll", "user.lua"} {
+		held[filepath.Join(root, name)] = true
+	}
+	host := &rt.Fake{Dirs: map[string]bool{root: true, filepath.Join(root, "config", "lua"): true}, Files: held}
+
+	if err := deploy.Uninstall(host, root, source.LayoutOpenSteamTool); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	for _, name := range []string{"OpenSteamTool.dll", "xinput1_4.dll", "dwmapi.dll", "version.dll"} {
+		if host.IsFile(filepath.Join(root, name)) {
+			t.Errorf("the layout file %s survived the removal", name)
+		}
+	}
+	if !host.IsFile(filepath.Join(root, "user.lua")) {
+		t.Error("the removal took the user's .lua file")
+	}
+	if !host.IsDir(filepath.Join(root, "config", "lua")) {
+		t.Error("the removal took the Lua directory")
+	}
+	if err := deploy.Uninstall(host, root, source.LayoutOpenSteamTool); err != nil {
+		t.Errorf("a repeated removal failed on the missing files: %v", err)
+	}
+}

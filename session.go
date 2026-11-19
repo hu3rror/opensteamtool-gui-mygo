@@ -47,15 +47,20 @@ func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg c
 	s.facts = factsFor(cfg.Language, locale, cfg, host, s.dir)
 	s.facts.NeedsSetup = !readable
 	s.actions = view.Actions{
-		SetLanguage:    s.setLanguage,
-		CommitPath:     s.commitSteamPath,
-		Browse:         s.browseSteamPath,
-		ApplySource:    s.applySource,
-		SetEntry:       s.setEntry,
-		CheckUpdate:    func() { s.checkUpdate() },
-		Download:       func() { s.downloadPatch() },
-		Apply:          func() { s.applyPatch() },
-		RemoveConflict: func() { s.removeConflictAndDeploy() },
+		SetLanguage:         s.setLanguage,
+		CommitPath:          s.commitSteamPath,
+		Browse:              s.browseSteamPath,
+		ApplySource:         s.applySource,
+		SetEntry:            s.setEntry,
+		CheckUpdate:         func() { s.checkUpdate() },
+		Download:            func() { s.downloadPatch() },
+		Apply:               func() { s.applyPatch() },
+		RemoveConflict:      func() { s.removeConflictAndDeploy() },
+		Uninstall:           func() { s.uninstall() },
+		ExitAndUninstall:    func() { s.exitSteamAndUninstall() },
+		UninstallAndRestart: func() { s.uninstallAndRestart() },
+		Confirm:             s.confirmPending,
+		Cancel:              s.declinePending,
 	}
 	return s
 }

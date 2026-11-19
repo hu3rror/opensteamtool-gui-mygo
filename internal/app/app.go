@@ -71,6 +71,22 @@ const (
 	PatchNotDownloaded
 )
 
+type Confirmation int
+
+const (
+	NoConfirmation Confirmation = iota
+	ConfirmExitRemove
+	ConfirmRemoveAndRestart
+)
+
+type SecondaryAction int
+
+const (
+	SecondaryUninstall SecondaryAction = iota
+	SecondaryExitAndUninstall
+	SecondaryUninstallAndRestart
+)
+
 type Busy int
 
 const (
@@ -128,6 +144,8 @@ const (
 	SteamStarted
 	SteamRestarted
 	PatchApplied
+	PatchRemoved
+	RemovalFailed
 	PathUnset
 	MissingSteamProgram
 	CloseSteamFailed
@@ -212,6 +230,7 @@ type Facts struct {
 	ClientBuild     string
 	Busy            Busy
 	Result          Result
+	Pending         Confirmation
 }
 
 type View struct {
@@ -225,10 +244,12 @@ type View struct {
 	DownloadOffered bool
 	PrimaryDisabled bool
 	UpdateInFlight  Busy
+	Secondary       []SecondaryAction
+	Pending         Confirmation
 }
 
 func Derive(f Facts) View {
-	v := View{Lang: f.Language.Resolve(f.Locale), NeedsSetup: f.NeedsSetup, MainState: mainStateOf(f), Conflict: f.Conflict, Status: Status{SteamRunning: f.SteamRunning, Result: f.Result}}
+	v := View{Lang: f.Language.Resolve(f.Locale), NeedsSetup: f.NeedsSetup, MainState: mainStateOf(f), Conflict: f.Conflict, Status: Status{SteamRunning: f.SteamRunning, Result: f.Result}, Secondary: secondaryOf(f), Pending: f.Pending}
 	v.Update, v.DownloadOffered = conclusionOf(f)
 	v.PrimaryDisabled = !f.SteamPathValid || !f.PatchDownloaded || !f.PatchComplete
 	if _, ok := Stage(f.Busy); ok {
@@ -290,4 +311,14 @@ func explanationOf(f Facts) Explanation {
 		return PatchNotDownloaded
 	}
 	return NoExplanation
+}
+
+func secondaryOf(f Facts) []SecondaryAction {
+	if !f.SteamPathValid || f.Deployment != Applied {
+		return nil
+	}
+	if f.SteamRunning {
+		return []SecondaryAction{SecondaryExitAndUninstall, SecondaryUninstallAndRestart}
+	}
+	return []SecondaryAction{SecondaryUninstall, SecondaryUninstallAndRestart}
 }

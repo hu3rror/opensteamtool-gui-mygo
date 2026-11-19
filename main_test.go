@@ -1016,3 +1016,270 @@ func TestAStateRefreshClearsTheApplyFailure(t *testing.T) {
 		t.Errorf("facts = %+v, the refresh kept the failure", facts)
 	}
 }
+
+func appliedSteam(t *testing.T, running bool) (*rt.Fake, *session, string) {
+	t.Helper()
+	host, root := steamHost(t, running)
+	for _, name := range []string{"OpenSteamTool.dll", "xinput1_4.dll", "dwmapi.dll"} {
+		host.Files[filepath.Join(root, name)] = true
+	}
+	return host, newTestSession(t, host, root), root
+}
+
+func TestAnUninstallWithoutASteamRunningRemovesOnlyTheLayoutFiles(t *testing.T) {
+	host, s, root := appliedSteam(t, false)
+	lua := filepath.Join(root, "config", "lua")
+	host.Dirs[lua] = true
+	host.Files[filepath.Join(lua, "unlock.lua")] = true
+	host.Files[filepath.Join(root, "user.lua")] = true
+
+	runCommand(t, s, s.uninstall)
+
+	facts := s.factsWithoutGate()
+	if facts.Result != app.PatchRemoved || facts.Deployment != app.NotApplied || facts.Busy != app.Idle {
+		t.Fatalf("facts = %+v, want the patch removed with an idle gate", facts)
+	}
+	for _, name := range []string{"OpenSteamTool.dll", "xinput1_4.dll", "dwmapi.dll"} {
+		if host.IsFile(filepath.Join(root, name)) {
+			t.Errorf("%s survived the removal", name)
+		}
+	}
+	for _, path := range []string{filepath.Join(root, "user.lua"), filepath.Join(lua, "unlock.lua")} {
+		if !host.IsFile(path) {
+			t.Errorf("%s was removed, want the user's .lua files kept", path)
+		}
+	}
+	if !host.IsDir(lua) {
+		t.Error("the Lua directory was removed")
+	}
+	if len(host.Spawned) != 0 || len(host.Killed) != 0 {
+		t.Errorf("spawned %v and killed %v, the removal must leave Steam alone", host.Spawned, host.Killed)
+	}
+	if len(host.Removes) != 3 {
+		t.Errorf("removed %v, want only the layout's files", host.Removes)
+	}
+	if slices.Contains(shown(t, s), "确认") {
+		t.Error("the removal asked for confirmation with Steam stopped")
+	}
+
+	runCommand(t, s, s.uninstall)
+	if facts := s.factsWithoutGate(); facts.Result != app.PatchRemoved {
+		t.Errorf("facts = %+v, want a repeated removal to succeed", facts)
+	}
+}
+
+func TestARunningRemovalAsksFirstAndADeclineChangesNothing(t *testing.T) {
+	host, s, root := appliedSteam(t, true)
+
+	if !s.exitSteamAndUninstall() {
+		t.Fatal("the request was refused")
+	}
+	facts := s.factsWithoutGate()
+	if facts.Pending != app.ConfirmExitRemove || facts.Busy != app.Idle {
+		t.Fatalf("facts = %+v, want the question pending with an idle gate", facts)
+	}
+	if !slices.Contains(shown(t, s), "Steam 正在运行。是否自动关闭 Steam 并继续？") {
+		t.Errorf("texts = %q, want the question", shown(t, s))
+	}
+	if len(host.Removes) != 0 || len(host.Spawned) != 0 {
+		t.Errorf("the question changed the Steam directory: removed %v, spawned %v", host.Removes, host.Spawned)
+	}
+
+	s.declinePending()
+
+	facts = s.factsWithoutGate()
+	if facts.Pending != app.NoConfirmation || facts.Result != app.NoResult || facts.Deployment != app.Applied || !facts.SteamRunning {
+		t.Fatalf("facts = %+v, want the decline to change nothing", facts)
+	}
+	if !host.IsFile(filepath.Join(root, "dwmapi.dll")) || len(host.Removes) != 0 {
+		t.Errorf("the decline removed %v", host.Removes)
+	}
+	if slices.Contains(shown(t, s), "确认") {
+		t.Error("the question survived the decline")
+	}
+}
+
+func TestAConfirmedExitAndRemovalClosesSteamThenRemovesThePatch(t *testing.T) {
+	host, s, root := appliedSteam(t, true)
+	host.OnSpawn = func(call rt.Launch) {
+		if slices.Equal(call.Args, []string{"-shutdown"}) {
+			host.Procs = nil
+			return
+		}
+		host.Procs = append(host.Procs, rt.Process{PID: call.PID, Exe: call.Exe})
+	}
+	s.exitSteamAndUninstall()
+
+	runCommand(t, s, func() bool { s.confirmPending(); return true })
+
+	facts := s.factsWithoutGate()
+	if facts.Result != app.PatchRemoved || facts.Deployment != app.NotApplied || facts.SteamRunning || facts.Busy != app.Idle {
+		t.Fatalf("facts = %+v, want the patch removed and Steam left closed", facts)
+	}
+	if len(host.Spawned) != 1 || !slices.Equal(host.Spawned[0].Args, []string{"-shutdown"}) {
+		t.Fatalf("spawned %+v, want only the graceful shutdown signal", host.Spawned)
+	}
+	for _, name := range []string{"OpenSteamTool.dll", "xinput1_4.dll", "dwmapi.dll"} {
+		if host.IsFile(filepath.Join(root, name)) {
+			t.Errorf("%s survived the removal", name)
+		}
+	}
+}
+
+func TestACloseFailureLeavesThePatchAndTheAppliedState(t *testing.T) {
+	host, s, root := appliedSteam(t, true)
+	host.OnSpawn = func(rt.Launch) {}
+	host.OnTerminate = func(int) {}
+	s.exitSteamAndUninstall()
+
+	runCommand(t, s, func() bool { s.confirmPending(); return true })
+
+	facts := s.factsWithoutGate()
+	if facts.Result != app.CloseSteamFailed || facts.Deployment != app.Applied || facts.Busy != app.Idle {
+		t.Fatalf("facts = %+v, want the failed close with the patch still applied", facts)
+	}
+	if len(host.Removes) != 0 {
+		t.Errorf("the failed close removed %v", host.Removes)
+	}
+	for _, name := range []string{"OpenSteamTool.dll", "xinput1_4.dll", "dwmapi.dll"} {
+		if !host.IsFile(filepath.Join(root, name)) {
+			t.Errorf("%s was removed after the failed close", name)
+		}
+	}
+	if !slices.Contains(shown(t, s), "关闭 Steam 失败") {
+		t.Errorf("texts = %q, want the failed close in the status bar", shown(t, s))
+	}
+}
+
+func TestAnUninstallAndRestartLeavesSteamRunningAndThePatchGone(t *testing.T) {
+	host, s, root := appliedSteam(t, false)
+	host.OnSpawn = func(call rt.Launch) {
+		host.Procs = append(host.Procs, rt.Process{PID: call.PID, Exe: call.Exe})
+	}
+
+	runCommand(t, s, s.uninstallAndRestart)
+
+	facts := s.factsWithoutGate()
+	if facts.Result != app.PatchRemoved || facts.Deployment != app.NotApplied || !facts.SteamRunning || facts.Busy != app.Idle {
+		t.Fatalf("facts = %+v, want the patch removed and Steam running again", facts)
+	}
+	if len(host.Spawned) != 1 || len(host.Spawned[0].Args) != 0 {
+		t.Fatalf("spawned %+v, want one bare start", host.Spawned)
+	}
+	if host.IsFile(filepath.Join(root, "dwmapi.dll")) {
+		t.Error("the entry survived the removal")
+	}
+	if slices.Contains(shown(t, s), "确认") {
+		t.Error("the removal asked for confirmation with Steam stopped")
+	}
+}
+
+func TestAnUninstallWithoutASteamPathTouchesNothing(t *testing.T) {
+	host := &rt.Fake{}
+	s := newTestSession(t, host, "")
+
+	runCommand(t, s, s.uninstall)
+
+	facts := s.factsWithoutGate()
+	if facts.Result != app.PathUnset || facts.Busy != app.Idle {
+		t.Fatalf("facts = %+v, want a refused removal", facts)
+	}
+	if len(host.Removes) != 0 || len(host.Spawned) != 0 {
+		t.Errorf("a refused removal removed %v and spawned %v", host.Removes, host.Spawned)
+	}
+}
+
+func TestAnUninstallRequestWhileBusyIsDropped(t *testing.T) {
+	host, s, _ := appliedSteam(t, true)
+	if !s.take(app.BusyApplyPatch) {
+		t.Fatal("the gate was not free")
+	}
+
+	if s.exitSteamAndUninstall() || s.uninstallAndRestart() {
+		t.Fatal("a removal request was accepted while the gate was taken")
+	}
+
+	facts := s.factsWithoutGate()
+	if facts.Pending != app.NoConfirmation || len(host.Removes) != 0 || len(host.Spawned) != 0 {
+		t.Fatalf("facts = %+v, want the request dropped without a question", facts)
+	}
+}
+
+func TestTheRunningRemovalAndRestartAsksBeforeItClosesSteam(t *testing.T) {
+	host, s, root := appliedSteam(t, true)
+	host.OnSpawn = func(call rt.Launch) {
+		if slices.Equal(call.Args, []string{"-shutdown"}) {
+			host.Procs = nil
+			return
+		}
+		host.Procs = append(host.Procs, rt.Process{PID: call.PID, Exe: call.Exe})
+	}
+
+	if !s.uninstallAndRestart() {
+		t.Fatal("the request was refused")
+	}
+	facts := s.factsWithoutGate()
+	if facts.Pending != app.ConfirmRemoveAndRestart || len(host.Removes) != 0 || len(host.Spawned) != 0 {
+		t.Fatalf("facts = %+v, want the question pending and nothing touched", facts)
+	}
+
+	runCommand(t, s, func() bool { s.confirmPending(); return true })
+
+	facts = s.factsWithoutGate()
+	if facts.Result != app.PatchRemoved || facts.Deployment != app.NotApplied || !facts.SteamRunning || facts.Busy != app.Idle {
+		t.Fatalf("facts = %+v, want the patch removed and Steam restarted", facts)
+	}
+	if len(host.Spawned) != 2 || !slices.Equal(host.Spawned[0].Args, []string{"-shutdown"}) || len(host.Spawned[1].Args) != 0 {
+		t.Fatalf("spawned %+v, want the shutdown signal then a bare start", host.Spawned)
+	}
+	if host.IsFile(filepath.Join(root, "dwmapi.dll")) {
+		t.Error("the entry survived the removal")
+	}
+}
+
+func TestAFailedRestartAfterTheRemovalIsRecorded(t *testing.T) {
+	host, s, root := appliedSteam(t, false)
+	host.OnSpawn = func(rt.Launch) {}
+
+	runCommand(t, s, s.uninstallAndRestart)
+
+	facts := s.factsWithoutGate()
+	if facts.Result != app.StartSteamFailed || facts.Deployment != app.NotApplied || facts.SteamRunning || facts.Busy != app.Idle {
+		t.Fatalf("facts = %+v, want the removed patch and a failed start", facts)
+	}
+	if host.IsFile(filepath.Join(root, "dwmapi.dll")) {
+		t.Error("the entry survived the removal")
+	}
+	if !slices.Contains(shown(t, s), "启动 Steam 失败") {
+		t.Errorf("texts = %q, want the failed start in the status bar", shown(t, s))
+	}
+}
+
+type lockedHost struct {
+	*rt.Fake
+}
+
+func (h lockedHost) Remove(string) error {
+	return errors.New("the file is open in another process")
+}
+
+func TestAnUndeletableFileReportsTheRemovalFailure(t *testing.T) {
+	host, root := steamHost(t, false)
+	for _, name := range []string{"OpenSteamTool.dll", "xinput1_4.dll", "dwmapi.dll"} {
+		host.Files[filepath.Join(root, name)] = true
+	}
+	s := newTestSession(t, lockedHost{host}, root)
+
+	runCommand(t, s, s.uninstall)
+
+	facts := s.factsWithoutGate()
+	if facts.Result != app.RemovalFailed || facts.Busy != app.Idle {
+		t.Fatalf("facts = %+v, want the failed removal with an idle gate", facts)
+	}
+	if facts.Deployment != app.Applied || facts.PatchFailed {
+		t.Errorf("facts = %+v, want the untouched patch and no apply failure", facts)
+	}
+	if !slices.Contains(shown(t, s), "卸载失败") {
+		t.Errorf("texts = %q, want the failed removal in the status bar", shown(t, s))
+	}
+}
