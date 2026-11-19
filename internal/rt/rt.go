@@ -1,8 +1,21 @@
 package rt
 
+import "time"
+
 type Process struct {
 	PID int
 	Exe string
+}
+
+type Response struct {
+	Status int
+	Body   []byte
+}
+
+type Answer struct {
+	Status int
+	Body   []byte
+	Err    error
 }
 
 type Runtime interface {
@@ -20,6 +33,7 @@ type Runtime interface {
 	PickDirectory(title string, start string) (string, error)
 	OpenPath(path string) error
 	Get(url string) ([]byte, error)
+	Fetch(url string, timeout time.Duration) (Response, error)
 }
 
 type OS struct{}
@@ -44,6 +58,7 @@ type Fake struct {
 
 	Responses  map[string][]byte
 	FetchError error
+	Answers    map[string]Answer
 	Fetched    []string
 
 	Mkdirs  []string

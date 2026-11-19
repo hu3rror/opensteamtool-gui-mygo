@@ -208,6 +208,64 @@ func TestTheFakeAnswersFromItsResponses(t *testing.T) {
 	}
 }
 
+func TestOSFetchReportsTheStatusAndTheTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/slow" {
+			time.Sleep(50 * time.Millisecond)
+		}
+		if r.URL.Path != "/signature" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte("sig"))
+	}))
+	defer server.Close()
+
+	osRuntime := rt.OS{}
+	response, err := osRuntime.Fetch(server.URL+"/signature", time.Second)
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if response.Status != 200 || string(response.Body) != "sig" {
+		t.Errorf("response %d %q, want the served signature", response.Status, response.Body)
+	}
+	missing, err := osRuntime.Fetch(server.URL+"/missing", time.Second)
+	if err != nil {
+		t.Fatalf("a 404 came back as an error: %v", err)
+	}
+	if missing.Status != 404 {
+		t.Errorf("status %d, want the 404 itself", missing.Status)
+	}
+	if _, err := osRuntime.Fetch(server.URL+"/slow", 10*time.Millisecond); err == nil {
+		t.Error("a request past its timeout answered anyway")
+	}
+}
+
+func TestTheFakeFetchAnswersWithTheStatusItWasGiven(t *testing.T) {
+	fake := &rt.Fake{Answers: map[string]rt.Answer{
+		"https://example.test/hit":  {Body: []byte("sig")},
+		"https://example.test/none": {Status: 404},
+		"https://example.test/down": {Err: errors.New("offline")},
+	}}
+	hit, err := fake.Fetch("https://example.test/hit", time.Second)
+	if err != nil || hit.Status != 200 || string(hit.Body) != "sig" {
+		t.Errorf("hit = %d %q %v, want the body with a 200", hit.Status, hit.Body, err)
+	}
+	none, err := fake.Fetch("https://example.test/none", time.Second)
+	if err != nil || none.Status != 404 {
+		t.Errorf("none = %d %v, want the 404 without an error", none.Status, err)
+	}
+	if _, err := fake.Fetch("https://example.test/down", time.Second); err == nil {
+		t.Error("the failing answer came back without an error")
+	}
+	if _, err := fake.Fetch("https://example.test/unknown", time.Second); err == nil {
+		t.Error("a URL the fake was not given came back without an error")
+	}
+	if len(fake.Fetched) != 4 {
+		t.Errorf("fetched %q, want every request recorded", fake.Fetched)
+	}
+}
+
 func TestOSMakesWritesRenamesAndRemovesFiles(t *testing.T) {
 	dir := t.TempDir()
 	osRuntime := rt.OS{}

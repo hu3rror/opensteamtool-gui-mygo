@@ -94,6 +94,7 @@ func main() {
 				tray.SetMenu(trayMenu(s))
 			}
 		}
+		s.startCompat()
 		go s.watch(steam.PollInterval)
 	})
 	if err := mygo.App.Run(); err != nil {

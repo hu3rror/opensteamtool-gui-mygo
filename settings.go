@@ -70,6 +70,7 @@ func (s *session) commitSteamPath(raw string) bool {
 	}
 	s.uiState.PathDraft = path
 	s.writeConfig(func(cfg *config.Config) { cfg.SteamPath = path })
+	s.startCompat()
 	return true
 }
 

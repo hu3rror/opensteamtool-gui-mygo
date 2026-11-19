@@ -175,6 +175,24 @@ const (
 	Applied
 )
 
+type Health int
+
+const (
+	HealthChecking Health = iota
+	HealthCompatibleCached
+	HealthAdaptedNotCached
+	HealthOfflineReady
+	HealthNotAdapted
+	HealthMissing
+	HealthNetworkUnavailable
+)
+
+type Component struct {
+	DLL         string
+	Kind        string
+	Fingerprint string
+	Health      Health
+}
 type Layout struct {
 	Payload         string
 	SecondaryLoader string
@@ -229,6 +247,11 @@ type Facts struct {
 	UpdateFailed    bool
 	SnapshotBuild   string
 	ClientBuild     string
+	Health          Health
+	Components      []Component
+	Prewarming      bool
+	PrecacheReady   bool
+	PrecacheFailure Result
 	Busy            Busy
 	Result          Result
 	Pending         Confirmation
@@ -247,10 +270,30 @@ type View struct {
 	UpdateInFlight  Busy
 	Secondary       []SecondaryAction
 	Pending         Confirmation
+	Health          Health
+	Components      []Component
+	Prewarming      bool
+	PrecacheReady   bool
+	PrecacheFailure Result
+	Risk            bool
 }
 
 func Derive(f Facts) View {
-	v := View{Lang: f.Language.Resolve(f.Locale), NeedsSetup: f.NeedsSetup, MainState: mainStateOf(f), Conflict: f.Conflict, Status: Status{SteamRunning: f.SteamRunning, Result: f.Result}, Secondary: secondaryOf(f), Pending: f.Pending}
+	v := View{
+		Lang:            f.Language.Resolve(f.Locale),
+		NeedsSetup:      f.NeedsSetup,
+		MainState:       mainStateOf(f),
+		Conflict:        f.Conflict,
+		Status:          Status{SteamRunning: f.SteamRunning, Result: f.Result},
+		Secondary:       secondaryOf(f),
+		Pending:         f.Pending,
+		Health:          f.Health,
+		Components:      f.Components,
+		Prewarming:      f.Prewarming,
+		PrecacheReady:   f.PrecacheReady,
+		PrecacheFailure: f.PrecacheFailure,
+		Risk:            riskOf(f),
+	}
 	v.Update, v.DownloadOffered = conclusionOf(f)
 	v.PrimaryDisabled = !f.SteamPathValid || !f.PatchDownloaded || !f.PatchComplete
 	if _, ok := Stage(f.Busy); ok {
@@ -262,6 +305,13 @@ func Derive(f Facts) View {
 		v.Explanation = explanationOf(f)
 	}
 	return v
+}
+
+func riskOf(f Facts) bool {
+	if !f.SteamPathValid {
+		return false
+	}
+	return f.Health == HealthNotAdapted || f.Health == HealthMissing
 }
 
 func conclusionOf(f Facts) (Conclusion, bool) {

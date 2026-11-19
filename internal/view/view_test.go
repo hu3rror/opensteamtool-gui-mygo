@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -801,5 +802,172 @@ func TestTheConfirmDialogStaysUntilItIsAnswered(t *testing.T) {
 	}
 	if answered != 0 {
 		t.Errorf("answered %d times, want the question left open", answered)
+	}
+}
+
+func TestTheRiskLineShowsOnlyForAnUnadaptedOrMissingCore(t *testing.T) {
+	healths := []app.Health{
+		app.HealthChecking,
+		app.HealthCompatibleCached,
+		app.HealthAdaptedNotCached,
+		app.HealthOfflineReady,
+		app.HealthNotAdapted,
+		app.HealthMissing,
+		app.HealthNetworkUnavailable,
+	}
+	for _, health := range healths {
+		tt := shown(t, app.Facts{SteamPathValid: true, Health: health})
+		want := health == app.HealthNotAdapted || health == app.HealthMissing
+		if got := tt.HasText("当前 Steam 尚未适配") || tt.HasText("未找到 Steam 核心文件"); !want {
+			if got {
+				t.Errorf("health %v raises the risk line %q", health, tt.Texts())
+			}
+		} else if !got {
+			t.Errorf("health %v shows no risk line in %q", health, tt.Texts())
+		}
+		if got := tt.HasText("当前 Steam 尚未适配   设置 →") || tt.HasText("未找到 Steam 核心文件   设置 →"); got != want {
+			t.Errorf("health %v shows the settings affordance %v, want %v", health, got, want)
+		}
+	}
+}
+
+func TestTheRiskLineOpensTheSteamTab(t *testing.T) {
+	s := &screen{facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, Health: app.HealthNotAdapted}}
+	tt := ui.NewTester(s.view, 480, 360)
+	if err := tt.Click("当前 Steam 尚未适配   设置 →"); err != nil {
+		t.Fatalf("click the risk line: %v", err)
+	}
+	if !s.state.SettingsOpen {
+		t.Fatal("the risk line did not open the settings")
+	}
+	if s.state.Tab != int(app.TabSteam) {
+		t.Errorf("the settings opened on tab %d, want the Steam tab", s.state.Tab)
+	}
+}
+
+func compatDialog(t *testing.T) (*screen, *ui.Tester) {
+	t.Helper()
+	s := &screen{facts: app.Facts{Locale: "zh-CN"}}
+	s.actions = view.Actions{
+		SetLanguage: func(app.Language) {},
+		CommitPath:  func(string) bool { return true },
+		Browse:      func() {},
+	}
+	tt := ui.NewTester(s.view, 480, 720)
+	if err := tt.Click("设置"); err != nil {
+		t.Fatalf("click the gear: %v", err)
+	}
+	return s, tt
+}
+
+func TestTheCompatibilitySectionShowsTheHealthAndTheComponents(t *testing.T) {
+	s, tt := compatDialog(t)
+	s.facts = app.Facts{
+		Locale:         "zh-CN",
+		SteamPathValid: true,
+		Health:         app.HealthAdaptedNotCached,
+		Components: []app.Component{
+			{DLL: "steamclient64.dll", Kind: "Pattern", Fingerprint: "0123456789ab", Health: app.HealthAdaptedNotCached},
+			{DLL: "steamclient64.dll", Kind: "IPC", Health: app.HealthMissing},
+		},
+	}
+	tt.Frame()
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatalf("open the Steam tab: %v", err)
+	}
+	for _, want := range []string{"Steam 核心兼容性", "上游已适配 (未缓存)", "上游已适配，可一键预热离线缓存。", "详细信息"} {
+		if !tt.HasText(want) {
+			t.Fatalf("texts %q without %q", tt.Texts(), want)
+		}
+	}
+	if tt.HasText("steamclient64.dll（Pattern）") {
+		t.Fatal("the components show before the details are expanded")
+	}
+	if err := tt.Click("详细信息"); err != nil {
+		t.Fatalf("expand the details: %v", err)
+	}
+	tt.Advance(500 * time.Millisecond)
+	for _, want := range []string{"steamclient64.dll（Pattern）", "0123456789ab", "steamclient64.dll（IPC）", "未找到核心 DLL"} {
+		if !tt.HasText(want) {
+			t.Fatalf("texts %q without %q", tt.Texts(), want)
+		}
+	}
+}
+
+func TestThePrewarmRunsFromTheBadgeAndFromTheDetails(t *testing.T) {
+	s, tt := compatDialog(t)
+	s.facts = app.Facts{Locale: "zh-CN", SteamPathValid: true, Health: app.HealthAdaptedNotCached}
+	ran := 0
+	s.actions.Prewarm = func() { ran++ }
+	tt.Frame()
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatalf("open the Steam tab: %v", err)
+	}
+	if err := tt.Click("预热离线缓存"); err != nil {
+		t.Fatalf("click the prewarm button: %v", err)
+	}
+	if err := tt.Click("详细信息"); err != nil {
+		t.Fatalf("expand the details: %v", err)
+	}
+	tt.Advance(500 * time.Millisecond)
+	if err := tt.Click("一键缓存签名"); err != nil {
+		t.Fatalf("click the cache action: %v", err)
+	}
+	if ran != 2 {
+		t.Errorf("the prewarm ran %d times, want the badge row and the details action", ran)
+	}
+}
+
+func TestTheCompatibilitySectionShowsThePrewarmState(t *testing.T) {
+	tests := []struct {
+		name  string
+		facts app.Facts
+		text  string
+	}{
+		{name: "running", facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, Health: app.HealthAdaptedNotCached, Prewarming: true}, text: "正在缓存..."},
+		{name: "ready", facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, Health: app.HealthCompatibleCached, PrecacheReady: true}, text: "缓存已就绪"},
+		{name: "failed", facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, Health: app.HealthAdaptedNotCached, PrecacheFailure: app.NetworkFailed}, text: "缓存预热失败：网络请求失败"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s, tt := compatDialog(t)
+			s.facts = test.facts
+			tt.Frame()
+			if err := tt.Click("Steam 设置"); err != nil {
+				t.Fatalf("open the Steam tab: %v", err)
+			}
+			if !tt.HasText(test.text) {
+				t.Errorf("texts %q without %q", tt.Texts(), test.text)
+			}
+		})
+	}
+}
+
+func TestTheDetailsOfferTheCacheForAnUncachedComponent(t *testing.T) {
+	s, tt := compatDialog(t)
+	s.facts = app.Facts{
+		Locale:         "zh-CN",
+		SteamPathValid: true,
+		Health:         app.HealthNetworkUnavailable,
+		Components: []app.Component{
+			{DLL: "steamclient64.dll", Kind: "Pattern", Fingerprint: "0123456789ab", Health: app.HealthAdaptedNotCached},
+			{DLL: "steamui.dll", Kind: "Pattern", Health: app.HealthNetworkUnavailable},
+		},
+	}
+	ran := 0
+	s.actions.Prewarm = func() { ran++ }
+	tt.Frame()
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatalf("open the Steam tab: %v", err)
+	}
+	if err := tt.Click("详细信息"); err != nil {
+		t.Fatalf("expand the details: %v", err)
+	}
+	tt.Advance(500 * time.Millisecond)
+	if err := tt.Click("一键缓存签名"); err != nil {
+		t.Fatalf("click the cache action: %v", err)
+	}
+	if ran != 1 {
+		t.Errorf("the prewarm ran %d times, want the details action", ran)
 	}
 }

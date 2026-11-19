@@ -1,6 +1,7 @@
 package rt
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -91,6 +92,25 @@ func (OS) Get(url string) ([]byte, error) {
 		return nil, fmt.Errorf("get %s: %w", url, err)
 	}
 	return body, nil
+}
+
+func (OS) Fetch(url string, timeout time.Duration) (Response, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return Response{}, fmt.Errorf("fetch %s: %w", url, err)
+	}
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return Response{}, fmt.Errorf("fetch %s: %w", url, err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return Response{}, fmt.Errorf("fetch %s: %w", url, err)
+	}
+	return Response{Status: response.StatusCode, Body: body}, nil
 }
 
 func (OS) PickDirectory(title string, start string) (string, error) {
@@ -187,6 +207,22 @@ func (f *Fake) Get(url string) ([]byte, error) {
 		return nil, fmt.Errorf("get %s: the fake has no response", url)
 	}
 	return body, nil
+}
+
+func (f *Fake) Fetch(url string, timeout time.Duration) (Response, error) {
+	f.Fetched = append(f.Fetched, url)
+	answer, ok := f.Answers[url]
+	if !ok {
+		return Response{}, fmt.Errorf("fetch %s: the fake has no answer", url)
+	}
+	if answer.Err != nil {
+		return Response{}, answer.Err
+	}
+	status := answer.Status
+	if status == 0 {
+		status = 200
+	}
+	return Response{Status: status, Body: slices.Clone(answer.Body)}, nil
 }
 
 func (f *Fake) Processes() ([]Process, error) { return slices.Clone(f.Procs), nil }

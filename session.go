@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"opensteamtool-gui-mygo/internal/app"
+	"opensteamtool-gui-mygo/internal/compat"
 	"opensteamtool-gui-mygo/internal/config"
 	"opensteamtool-gui-mygo/internal/rt"
 	"opensteamtool-gui-mygo/internal/steam"
@@ -31,6 +32,9 @@ type session struct {
 	cfg    config.Config
 	gate   app.Gate
 	online online
+
+	compat      *compat.Round
+	compatStamp string
 
 	frame   func()
 	retitle func(string)
@@ -66,6 +70,7 @@ func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg c
 		quit:    func() {},
 		retray:  func() {},
 		now:     time.Now,
+		compat:  compat.NewRound(),
 	}
 	s.facts = factsFor(cfg.Language, locale, cfg, host, s.dir)
 	s.facts.NeedsSetup = !readable
@@ -84,6 +89,7 @@ func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg c
 		UninstallAndRestart: func() { s.uninstallAndRestart() },
 		Confirm:             s.confirmPending,
 		Cancel:              s.declinePending,
+		Prewarm:             func() { s.prewarm(true) },
 	}
 	return s
 }

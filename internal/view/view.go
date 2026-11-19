@@ -26,6 +26,8 @@ type State struct {
 	SourceHandle  ui.Handle
 
 	Entry source.Entry
+
+	CompatDetails bool
 }
 
 type Actions struct {
@@ -43,6 +45,7 @@ type Actions struct {
 	UninstallAndRestart func()
 	Confirm             func()
 	Cancel              func()
+	Prewarm             func()
 }
 
 func Main(c *ui.Context, v app.View, st *State, a Actions) {
@@ -86,6 +89,7 @@ func mainScreen(c *ui.Context, v app.View, st *State, a Actions) {
 	actionRow(c, v, a)
 	secondaryRow(c, v, a)
 	updateSlot(c, v, a)
+	riskLine(c, v, st)
 	ui.Row(c).Gap(t.Space(4)).Children(func() {
 		ui.Text(c, text(v.Lang, steamWord(v.Status.SteamRunning))).Role(ui.RoleStatus)
 		if stage, ok := app.Stage(v.Status.Busy); ok {
@@ -93,6 +97,88 @@ func mainScreen(c *ui.Context, v app.View, st *State, a Actions) {
 		}
 		if copy, ok := resultCopies[v.Status.Result]; ok {
 			ui.Text(c, text(v.Lang, copy)).Role(ui.RoleStatus)
+		}
+	})
+}
+
+func riskLine(c *ui.Context, v app.View, st *State) {
+	label, ok := RiskLabel(v.Lang, v.Health)
+	if !v.Risk || !ok {
+		return
+	}
+	t := c.Theme()
+	line := ui.Button(c, label+"   "+SettingsAffordance(v.Lang)).TextColor(t.Warning)
+	if line.Clicked() {
+		st.Tab = int(app.TabSteam)
+		st.SettingsOpen = true
+	}
+}
+
+func compatibilitySection(c *ui.Context, v app.View, st *State, a Actions) {
+	t := c.Theme()
+	ui.Column(c).Gap(t.Space(2)).Children(func() {
+		ui.Text(c, text(v.Lang, compatSection)).FontSize(t.FontSize * 1.1)
+		ui.Row(c).Gap(t.Space(2)).Children(func() {
+			ui.Badge(c, HealthLabel(v.Lang, v.Health))
+			if prewarmOffered(v) {
+				ui.Row(c).Children(func() {
+					if ui.Button(c, text(v.Lang, prewarmOffline)).Clicked() {
+						a.Prewarm()
+					}
+				})
+			}
+			if tip, ok := HealthTip(v.Lang, v.Health); ok {
+				ui.Text(c, tip).TextColor(t.TextMuted)
+			}
+		})
+		switch {
+		case v.Prewarming:
+			ui.Text(c, text(v.Lang, cachingSignatures)).Role(ui.RoleStatus)
+		case v.PrecacheReady:
+			ui.Text(c, text(v.Lang, cacheReady)).Role(ui.RoleStatus)
+		}
+		if v.PrecacheFailure != app.NoResult {
+			ui.Text(c, CacheFailure(v.Lang, v.PrecacheFailure)).TextColor(t.Danger)
+		}
+		ui.Collapsible(c, text(v.Lang, compatDetails), &st.CompatDetails, func() {
+			compatibilityDetails(c, v, a)
+		})
+	})
+}
+
+func prewarmOffered(v app.View) bool {
+	if v.Prewarming {
+		return false
+	}
+	if v.Health == app.HealthAdaptedNotCached {
+		return true
+	}
+	for _, component := range v.Components {
+		if component.Health == app.HealthAdaptedNotCached {
+			return true
+		}
+	}
+	return false
+}
+
+func compatibilityDetails(c *ui.Context, v app.View, a Actions) {
+	t := c.Theme()
+	ui.Column(c).Gap(t.Space(2)).Children(func() {
+		for _, component := range v.Components {
+			ui.Row(c).Gap(t.Space(2)).Children(func() {
+				ui.Text(c, ComponentLabel(v.Lang, component))
+				if component.Fingerprint != "" {
+					ui.Text(c, component.Fingerprint).TextColor(t.TextMuted)
+				}
+				ui.Badge(c, HealthLabel(v.Lang, component.Health))
+			})
+		}
+		if prewarmOffered(v) {
+			ui.Row(c).Children(func() {
+				if ui.Button(c, text(v.Lang, cacheSignatures)).Clicked() {
+					a.Prewarm()
+				}
+			})
 		}
 	})
 }
@@ -274,6 +360,7 @@ func steamPage(c *ui.Context, v app.View, st *State, a Actions) {
 	}
 	entryControl(c, v, st, a)
 	ui.Text(c, text(v.Lang, steamCfgNote)).TextColor(t.TextMuted)
+	compatibilitySection(c, v, st, a)
 }
 
 func (st *State) commitPath(a Actions) {

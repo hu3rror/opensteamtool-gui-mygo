@@ -212,3 +212,49 @@ func TestThePrimaryActionNeedsAPathAndCompleteFiles(t *testing.T) {
 		})
 	}
 }
+
+func TestTheHealthAndComponentsReachTheScreen(t *testing.T) {
+	components := []app.Component{
+		{DLL: "steamclient64.dll", Kind: "Pattern", Fingerprint: "0123456789ab", Health: app.HealthOfflineReady},
+		{DLL: "steamui.dll", Kind: "Pattern", Health: app.HealthMissing},
+	}
+	view := app.Derive(app.Facts{
+		Health:          app.HealthOfflineReady,
+		Components:      components,
+		Prewarming:      true,
+		PrecacheReady:   true,
+		PrecacheFailure: app.NetworkFailed,
+	})
+	if view.Health != app.HealthOfflineReady {
+		t.Errorf("the screen reports %v, want the cached health", view.Health)
+	}
+	if !slices.Equal(view.Components, components) {
+		t.Errorf("components = %v, want %v", view.Components, components)
+	}
+	if !view.Prewarming || !view.PrecacheReady || view.PrecacheFailure != app.NetworkFailed {
+		t.Errorf("prewarm = %v/%v/%v, want it running, ready and failed over the network", view.Prewarming, view.PrecacheReady, view.PrecacheFailure)
+	}
+}
+
+func TestOnlyAnUnadaptedOrMissingCoreRaisesTheRisk(t *testing.T) {
+	healths := []app.Health{
+		app.HealthChecking,
+		app.HealthCompatibleCached,
+		app.HealthAdaptedNotCached,
+		app.HealthOfflineReady,
+		app.HealthNotAdapted,
+		app.HealthMissing,
+		app.HealthNetworkUnavailable,
+	}
+	for _, health := range healths {
+		want := health == app.HealthNotAdapted || health == app.HealthMissing
+		facts := app.Facts{SteamPathValid: true, Health: health}
+		if got := app.Derive(facts).Risk; got != want {
+			t.Errorf("the risk line with health %v = %v, want %v", health, got, want)
+		}
+	}
+	unset := app.Facts{Health: app.HealthNotAdapted}
+	if app.Derive(unset).Risk {
+		t.Error("a screen without a path raises the risk line")
+	}
+}

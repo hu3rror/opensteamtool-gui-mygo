@@ -67,6 +67,7 @@ func (s *session) exit() {
 }
 
 func (s *session) poll() {
+	s.startCompat()
 	was := s.factsWithoutGate().SteamRunning
 	if !s.refresh() {
 		return

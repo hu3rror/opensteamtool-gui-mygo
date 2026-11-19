@@ -98,6 +98,29 @@ const (
 	parseFailed              key = "解析线上版本失败"
 	localIOFailed            key = "本地文件操作失败"
 	writeFailed              key = "写入本地文件失败"
+	compatSection            key = "Steam 核心兼容性"
+	compatChecking           key = "正在检查兼容性..."
+	compatCached             key = "完美兼容 (已缓存)"
+	compatAdapted            key = "上游已适配 (未缓存)"
+	compatOffline            key = "离线可用 (使用本地缓存)"
+	compatNotAdapted         key = "上游尚未适配此版本"
+	compatNoCore             key = "未找到核心 DLL"
+	compatDown               key = "网络不可用"
+	prewarmOffline           key = "预热离线缓存"
+	compatDetails            key = "详细信息"
+	cacheSignatures          key = "一键缓存签名"
+	cachingSignatures        key = "正在缓存..."
+	cacheReady               key = "缓存已就绪"
+	cacheFailed              key = "缓存预热失败：%s"
+	compatTipUpdated         key = "Steam 版本已更新，上游尚未发布适配签名，请等待更新。"
+	compatTipCached          key = "核心特征码与 IPC 规约已全部就绪并离线缓存。"
+	compatTipAdapted         key = "上游已适配，可一键预热离线缓存。"
+	compatTipMissing         key = "未找到核心 DLL（steamclient64.dll / steamui.dll）。"
+	compatTipOffline         key = "网络不可用，体检结果未知；已缓存项仍可离线使用。"
+	riskNotAdapted           key = "当前 Steam 尚未适配"
+	riskMissingCore          key = "未找到 Steam 核心文件"
+	riskSettings             key = "设置 →"
+	componentRow             key = "%s（%s）"
 	addressError             key = "地址无效：需要 github.com 仓库地址"
 )
 
@@ -190,6 +213,29 @@ var copyTable = map[key]string{
 	parseFailed:              "Failed to parse the online version",
 	localIOFailed:            "Local file operation failed",
 	writeFailed:              "Failed to write local files",
+	compatSection:            "Steam core compatibility",
+	compatChecking:           "Checking compatibility...",
+	compatCached:             "Fully compatible (cached)",
+	compatAdapted:            "Upstream has adapted (not cached)",
+	compatOffline:            "Offline ready (using the local cache)",
+	compatNotAdapted:         "Upstream has not adapted this build",
+	compatNoCore:             "Core DLL not found",
+	compatDown:               "Network unavailable",
+	prewarmOffline:           "Cache for offline use",
+	compatDetails:            "Details",
+	cacheSignatures:          "Cache signatures",
+	cachingSignatures:        "Caching...",
+	cacheReady:               "Cache is ready",
+	cacheFailed:              "Caching failed: %s",
+	compatTipUpdated:         "Steam updated and upstream has not published an adaptation yet. Please wait.",
+	compatTipCached:          "The core signature and IPC contract are ready and cached offline.",
+	compatTipAdapted:         "Upstream has adapted. You can cache it for offline use in one click.",
+	compatTipMissing:         "Core DLLs not found (steamclient64.dll / steamui.dll).",
+	compatTipOffline:         "The network is unavailable, so the result is unknown. Cached items still work offline.",
+	riskNotAdapted:           "The current Steam build is not supported yet",
+	riskMissingCore:          "Steam core files not found",
+	riskSettings:             "Settings →",
+	componentRow:             "%s (%s)",
 	addressError:             "Invalid address: a github.com repository address is required",
 }
 
@@ -299,3 +345,55 @@ func Show(l app.Lang) string          { return text(l, showWindow) }
 func Exit(l app.Lang) string          { return text(l, exitApp) }
 func OpenLuaFolder(l app.Lang) string { return text(l, openLuaFolder) }
 func TrayRunning(l app.Lang) string   { return text(l, trayRunning) }
+
+var healthCopies = map[app.Health]key{
+	app.HealthChecking:           compatChecking,
+	app.HealthCompatibleCached:   compatCached,
+	app.HealthAdaptedNotCached:   compatAdapted,
+	app.HealthOfflineReady:       compatOffline,
+	app.HealthNotAdapted:         compatNotAdapted,
+	app.HealthMissing:            compatNoCore,
+	app.HealthNetworkUnavailable: compatDown,
+}
+
+var healthTips = map[app.Health]key{
+	app.HealthCompatibleCached:   compatTipCached,
+	app.HealthAdaptedNotCached:   compatTipAdapted,
+	app.HealthNotAdapted:         compatTipUpdated,
+	app.HealthMissing:            compatTipMissing,
+	app.HealthNetworkUnavailable: compatTipOffline,
+}
+
+var riskCopies = map[app.Health]key{
+	app.HealthNotAdapted: riskNotAdapted,
+	app.HealthMissing:    riskMissingCore,
+}
+
+func HealthLabel(l app.Lang, health app.Health) string { return text(l, healthCopies[health]) }
+
+func HealthTip(l app.Lang, health app.Health) (string, bool) {
+	tip, ok := healthTips[health]
+	if !ok {
+		return "", false
+	}
+	return text(l, tip), true
+}
+
+func RiskLabel(l app.Lang, health app.Health) (string, bool) {
+	risk, ok := riskCopies[health]
+	if !ok {
+		return "", false
+	}
+	return text(l, risk), true
+}
+
+func SettingsAffordance(l app.Lang) string { return text(l, riskSettings) }
+
+func CacheFailure(l app.Lang, result app.Result) string {
+	return strings.Replace(text(l, cacheFailed), "%s", text(l, resultCopies[result]), 1)
+}
+
+func ComponentLabel(l app.Lang, component app.Component) string {
+	row := strings.Replace(text(l, componentRow), "%s", component.DLL, 1)
+	return strings.Replace(row, "%s", component.Kind, 1)
+}
