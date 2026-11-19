@@ -359,3 +359,64 @@ func TestTheFakeReportsEveryOpenedPath(t *testing.T) {
 		t.Errorf("recorded %v, want both attempts", fake.Opens)
 	}
 }
+
+func TestTheStatReportsTheSizeAndTheModificationTime(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "steamui.dll")
+	if err := os.WriteFile(file, []byte("abc"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	info, err := rt.OS{}.Stat(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Size != 3 || info.ModTime.IsZero() {
+		t.Errorf("stat = %+v, want the size and the modification time", info)
+	}
+	if _, err := (rt.OS{}).Stat(filepath.Join(dir, "absent.dll")); err == nil {
+		t.Error("an absent file statted without an error")
+	}
+
+	host := &rt.Fake{}
+	if err := host.WriteFile(file, []byte("abcd")); err != nil {
+		t.Fatal(err)
+	}
+	first, err := host.Stat(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := host.WriteFile(file, []byte("abcde")); err != nil {
+		t.Fatal(err)
+	}
+	second, err := host.Stat(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Size != 5 || !second.ModTime.After(first.ModTime) {
+		t.Errorf("stat = %+v after the rewrite, want the new size and a later time", second)
+	}
+	if _, err := host.Stat(filepath.Join(dir, "absent.dll")); err == nil {
+		t.Error("the fake statted a file it does not hold")
+	}
+}
+
+func TestARenamedFileKeepsItsModificationTime(t *testing.T) {
+	host := &rt.Fake{}
+	if err := host.WriteFile("/steamui.dll.part", []byte("x")); err != nil {
+		t.Fatal(err)
+	}
+	before, err := host.Stat("/steamui.dll.part")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := host.Rename("/steamui.dll.part", "/steamui.dll"); err != nil {
+		t.Fatal(err)
+	}
+	after, err := host.Stat("/steamui.dll")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !after.ModTime.Equal(before.ModTime) {
+		t.Errorf("modification time = %v after the rename, want %v kept", after.ModTime, before.ModTime)
+	}
+}

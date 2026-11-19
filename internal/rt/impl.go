@@ -32,6 +32,14 @@ func (OS) ReadFile(path string) ([]byte, error) {
 	return data, nil
 }
 
+func (OS) Stat(path string) (Stat, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return Stat{}, fmt.Errorf("stat %s: %w", path, err)
+	}
+	return Stat{Size: info.Size(), ModTime: info.ModTime()}, nil
+}
+
 func (OS) IsReadableDir(path string) bool {
 	dir, err := os.Open(path)
 	if err != nil {
@@ -143,7 +151,15 @@ func (f *Fake) OpenPath(path string) error {
 
 func (f Fake) IsFile(path string) bool { return f.Files[path] }
 
+func (f *Fake) Stat(path string) (Stat, error) {
+	if !f.Files[path] {
+		return Stat{}, fmt.Errorf("stat %s: the fake has no such file", path)
+	}
+	return Stat{Size: int64(len(f.Contents[path])), ModTime: f.ModTimes[path]}, nil
+}
+
 func (f *Fake) ReadFile(path string) ([]byte, error) {
+	f.Reads = append(f.Reads, path)
 	if !f.Files[path] {
 		return nil, fmt.Errorf("read %s: the fake has no such file", path)
 	}
@@ -173,6 +189,11 @@ func (f *Fake) WriteFile(path string, data []byte) error {
 		f.Contents = map[string][]byte{}
 	}
 	f.Contents[path] = slices.Clone(data)
+	if f.ModTimes == nil {
+		f.ModTimes = map[string]time.Time{}
+	}
+	f.clock = f.clock.Add(time.Second)
+	f.ModTimes[path] = f.clock
 	return nil
 }
 
@@ -187,6 +208,10 @@ func (f *Fake) Rename(from string, to string) error {
 		f.Contents[to] = data
 		delete(f.Contents, from)
 	}
+	if modTime, ok := f.ModTimes[from]; ok {
+		f.ModTimes[to] = modTime
+		delete(f.ModTimes, from)
+	}
 	return nil
 }
 
@@ -194,6 +219,7 @@ func (f *Fake) Remove(path string) error {
 	f.Removes = append(f.Removes, path)
 	delete(f.Files, path)
 	delete(f.Contents, path)
+	delete(f.ModTimes, path)
 	return nil
 }
 
@@ -211,6 +237,9 @@ func (f *Fake) Get(url string) ([]byte, error) {
 
 func (f *Fake) Fetch(url string, timeout time.Duration) (Response, error) {
 	f.Fetched = append(f.Fetched, url)
+	if f.OnFetch != nil {
+		f.OnFetch(url)
+	}
 	answer, ok := f.Answers[url]
 	if !ok {
 		return Response{}, fmt.Errorf("fetch %s: the fake has no answer", url)

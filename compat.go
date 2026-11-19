@@ -1,16 +1,20 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"path/filepath"
+	"strings"
 
 	"opensteamtool-gui-mygo/internal/app"
 	"opensteamtool-gui-mygo/internal/compat"
 	"opensteamtool-gui-mygo/internal/patch"
+	"opensteamtool-gui-mygo/internal/rt"
 )
 
 func (s *session) startCompat() {
 	facts := s.factsWithoutGate()
-	stamp := facts.SteamPath + "\x00" + patch.ClientBuild(facts.SteamPath)
+	stamp := compatStamp(s.host, facts.SteamPath)
 	s.mu.Lock()
 	if s.compatStamp == stamp {
 		s.mu.Unlock()
@@ -21,6 +25,19 @@ func (s *session) startCompat() {
 	s.mu.Unlock()
 	go s.runCompat(job)
 	s.syncCompat()
+}
+
+func compatStamp(host rt.Runtime, steamDir string) string {
+	parts := []string{steamDir, patch.ClientBuild(steamDir)}
+	for _, name := range compat.CoreFiles() {
+		info, err := host.Stat(filepath.Join(steamDir, name))
+		if err != nil {
+			parts = append(parts, name+"="+err.Error())
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s=%d:%d", name, info.Size, info.ModTime.UnixNano()))
+	}
+	return strings.Join(parts, "\x00")
 }
 
 func (s *session) runCompat(job compat.Job) {

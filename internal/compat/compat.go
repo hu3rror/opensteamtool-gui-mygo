@@ -71,6 +71,20 @@ func (t Target) key() string {
 	return "steamclient_pattern"
 }
 
+func CoreFiles() []string {
+	seen := map[string]bool{}
+	files := make([]string, 0, len(targets))
+	for _, target := range targets {
+		dll := target.dll()
+		if seen[dll] {
+			continue
+		}
+		seen[dll] = true
+		files = append(files, dll)
+	}
+	return files
+}
+
 type Verdict int
 
 const (
@@ -123,7 +137,7 @@ func Probes(host Host, steamDir string, toolDir string, now func() time.Time) Re
 	}
 	report := Report{Probes: make([]Probe, 0, len(targets))}
 	fingerprints := map[string]string{}
-	for _, name := range []string{"steamclient64.dll", "steamui.dll"} {
+	for _, name := range CoreFiles() {
 		sha, err := fingerprint(host, filepath.Join(steamDir, name))
 		if err != nil && report.Err == nil {
 			report.Err = err

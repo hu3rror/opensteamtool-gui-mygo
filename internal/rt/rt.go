@@ -7,6 +7,11 @@ type Process struct {
 	Exe string
 }
 
+type Stat struct {
+	Size    int64
+	ModTime time.Time
+}
+
 type Response struct {
 	Status int
 	Body   []byte
@@ -22,6 +27,7 @@ type Runtime interface {
 	IsDir(path string) bool
 	IsFile(path string) bool
 	ReadFile(path string) ([]byte, error)
+	Stat(path string) (Stat, error)
 	IsReadableDir(path string) bool
 	MkdirAll(path string) error
 	WriteFile(path string, data []byte) error
@@ -50,6 +56,8 @@ type Fake struct {
 	Files      map[string]bool
 	Contents   map[string][]byte
 	Unreadable map[string]bool
+	ModTimes   map[string]time.Time
+	clock      time.Time
 	Picked     string
 	PickStart  string
 
@@ -60,7 +68,9 @@ type Fake struct {
 	FetchError error
 	Answers    map[string]Answer
 	Fetched    []string
+	OnFetch    func(url string)
 
+	Reads   []string
 	Mkdirs  []string
 	Writes  []Write
 	Renames []Move
