@@ -38,6 +38,7 @@ type Runtime interface {
 	Terminate(pid int) error
 	PickDirectory(title string, start string) (string, error)
 	OpenPath(path string) error
+	OpenURL(url string) error
 	Get(url string) ([]byte, error)
 	Fetch(url string, timeout time.Duration) (Response, error)
 }
@@ -61,8 +62,10 @@ type Fake struct {
 	Picked     string
 	PickStart  string
 
-	Opens     []string
-	OpenError error
+	Opens        []string
+	OpenedURLs   []string
+	OpenError    error
+	OpenURLError error
 
 	Responses  map[string][]byte
 	FetchError error

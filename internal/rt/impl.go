@@ -129,6 +129,13 @@ func (OS) PickDirectory(title string, start string) (string, error) {
 	return paths[0], nil
 }
 
+func (OS) OpenURL(url string) error {
+	if err := mygo.Shell.OpenExternal(url); err != nil {
+		return fmt.Errorf("open %s: %w", url, err)
+	}
+	return nil
+}
+
 func (OS) OpenPath(path string) error {
 	if err := mygo.Shell.OpenPath(path); err != nil {
 		return fmt.Errorf("open %s: %w", path, err)
@@ -147,6 +154,11 @@ func (f *Fake) PickDirectory(_ string, start string) (string, error) {
 func (f *Fake) OpenPath(path string) error {
 	f.Opens = append(f.Opens, path)
 	return f.OpenError
+}
+
+func (f *Fake) OpenURL(url string) error {
+	f.OpenedURLs = append(f.OpenedURLs, url)
+	return f.OpenURLError
 }
 
 func (f Fake) IsFile(path string) bool { return f.Files[path] }

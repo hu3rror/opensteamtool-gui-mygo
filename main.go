@@ -46,6 +46,8 @@ func main() {
 	}
 	s := newSession(rt.OS{}, time.Sleep, locale(), cfg, readable, dir)
 	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
+	s.setToolVersion(mygo.App.Version())
+	s.applyTheme()
 
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
@@ -94,6 +96,7 @@ func main() {
 				tray.SetMenu(trayMenu(s))
 			}
 		}
+		s.followSystem()
 		s.startCompat()
 		go s.watch(steam.PollInterval)
 	})

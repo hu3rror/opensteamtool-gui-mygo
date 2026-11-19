@@ -13,6 +13,7 @@ type State struct {
 	SettingsOpen bool
 	Tab          int
 	Language     int
+	Theme        int
 	PathDraft    string
 	PathFocused  bool
 	PathError    bool
@@ -32,6 +33,7 @@ type State struct {
 
 type Actions struct {
 	SetLanguage         func(app.Language)
+	SetTheme            func(app.Theme)
 	CommitPath          func(raw string) bool
 	Browse              func()
 	ApplySource         func(draft source.Draft) (source.Source, bool)
@@ -46,6 +48,9 @@ type Actions struct {
 	Confirm             func()
 	Cancel              func()
 	Prewarm             func()
+	CheckToolUpdate     func()
+	OpenProject         func()
+	OpenDownload        func()
 }
 
 func Main(c *ui.Context, v app.View, st *State, a Actions) {
@@ -185,7 +190,7 @@ func compatibilityDetails(c *ui.Context, v app.View, a Actions) {
 
 func actionRow(c *ui.Context, v app.View, a Actions) {
 	t := c.Theme()
-	busy := v.Status.Busy != app.Idle || v.UpdateInFlight != app.Idle
+	busy := v.Busy
 	ui.Row(c).Gap(t.Space(4)).Children(func() {
 		if ui.Button(c, text(v.Lang, applyAndStart)).Disabled(busy || v.PrimaryDisabled).Clicked() {
 			a.Apply()
@@ -211,7 +216,7 @@ func secondaryRow(c *ui.Context, v app.View, a Actions) {
 		return
 	}
 	t := c.Theme()
-	busy := v.Status.Busy != app.Idle || v.UpdateInFlight != app.Idle
+	busy := v.Busy
 	ui.Row(c).Gap(t.Space(4)).Children(func() {
 		for _, action := range v.Secondary {
 			if ui.Button(c, text(v.Lang, secondaryLabels[action])).Disabled(busy).Clicked() {
@@ -254,8 +259,6 @@ func confirm(c *ui.Context, v app.View, a Actions) {
 
 func updateSlot(c *ui.Context, v app.View, a Actions) {
 	t := c.Theme()
-	busy := v.Status.Busy != app.Idle
-	inflight := v.UpdateInFlight != app.Idle
 	progress := key("")
 	if v.UpdateInFlight == app.BusyCheckUpdate {
 		progress = checking
@@ -263,8 +266,9 @@ func updateSlot(c *ui.Context, v app.View, a Actions) {
 	if v.UpdateInFlight == app.BusyDownloadPatch {
 		progress = downloadingPatch
 	}
+	patchBusy := v.Status.Busy != app.Idle || v.UpdateInFlight != app.Idle
 	ui.Row(c).Gap(t.Space(4)).Children(func() {
-		if ui.Button(c, text(v.Lang, checkUpdate)).Disabled(busy || inflight).Clicked() {
+		if ui.Button(c, text(v.Lang, checkUpdate)).Disabled(patchBusy).Clicked() {
 			a.CheckUpdate()
 		}
 		if progress != "" {
@@ -275,7 +279,7 @@ func updateSlot(c *ui.Context, v app.View, a Actions) {
 			ui.Text(c, text(v.Lang, copy)).Role(ui.RoleStatus)
 		}
 		if v.DownloadOffered {
-			if ui.Button(c, text(v.Lang, downloadNewVersion)).Disabled(busy).Clicked() {
+			if ui.Button(c, text(v.Lang, downloadNewVersion)).Disabled(patchBusy).Clicked() {
 				a.Download()
 			}
 		}
@@ -305,6 +309,8 @@ func settingsDialog(c *ui.Context, v app.View, st *State, a Actions) {
 					patchSourcePage(c, v, st, a)
 				case app.TabSteam:
 					steamPage(c, v, st, a)
+				case app.TabAbout:
+					aboutPage(c, v, a)
 				}
 			})
 			ui.Row(c).Justify(ui.End).Children(func() {
@@ -319,18 +325,74 @@ func settingsDialog(c *ui.Context, v app.View, st *State, a Actions) {
 	}
 }
 
+func aboutPage(c *ui.Context, v app.View, a Actions) {
+	t := c.Theme()
+	ui.Column(c).Gap(t.Space(3)).Children(func() {
+		ui.Row(c).Gap(t.Space(3)).Children(func() {
+			ui.Text(c, text(v.Lang, appVersionLabel)).TextColor(t.TextMuted)
+			ui.Text(c, v.Tool.Version)
+		})
+		ui.Row(c).Gap(t.Space(3)).Children(func() {
+			ui.Text(c, text(v.Lang, appUpdateRow)).TextColor(t.TextMuted)
+			if ui.Button(c, text(v.Lang, checkToolUpdate)).Disabled(v.Busy).Clicked() {
+				a.CheckToolUpdate()
+			}
+			toolStatus(c, v)
+		})
+		if v.Tool.State == app.ToolAvailable {
+			if ui.Button(c, text(v.Lang, openDownloadPage)).Clicked() {
+				a.OpenDownload()
+			}
+		}
+		ui.Row(c).Gap(t.Space(3)).Children(func() {
+			if ui.Button(c, text(v.Lang, projectPage)).Clicked() {
+				a.OpenProject()
+			}
+			ui.Button(c, text(v.Lang, runWizard)).Disabled(true).Clicked()
+		})
+		ui.Text(c, text(v.Lang, runWizardHint)).TextColor(t.TextMuted)
+	})
+}
+
+func toolStatus(c *ui.Context, v app.View) {
+	t := c.Theme()
+	switch v.Tool.State {
+	case app.ToolChecking:
+		ui.Text(c, text(v.Lang, toolChecking)).TextColor(t.TextMuted)
+	case app.ToolUpToDate:
+		ui.Text(c, text(v.Lang, toolUpToDate))
+	case app.ToolAvailable:
+		ui.Text(c, toolAvailableText(v.Lang, v.Tool.Available)).TextColor(t.TextMuted)
+	case app.ToolCheckFailed:
+		ui.Text(c, text(v.Lang, checkFailed)).TextColor(t.Danger)
+	}
+}
+
 func generalPage(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
-	ui.Column(c).Gap(t.Space(2)).Children(func() {
-		ui.Text(c, text(v.Lang, languageRow))
-		choice := ui.Segmented(c, &st.Language,
-			text(v.Lang, languageAuto),
-			text(v.Lang, languageChinese),
-			text(v.Lang, languageEnglish),
-		)
-		if choice.Changed() {
-			a.SetLanguage(app.Language(st.Language))
-		}
+	ui.Column(c).Gap(t.Space(3)).Children(func() {
+		ui.Row(c).Gap(t.Space(3)).Children(func() {
+			ui.Text(c, text(v.Lang, languageRow))
+			choice := ui.Segmented(c, &st.Language,
+				text(v.Lang, followSystem),
+				text(v.Lang, languageChinese),
+				text(v.Lang, languageEnglish),
+			)
+			if choice.Changed() {
+				a.SetLanguage(app.Language(st.Language))
+			}
+		})
+		ui.Row(c).Gap(t.Space(3)).Children(func() {
+			ui.Text(c, text(v.Lang, themeRow))
+			appearance := ui.Segmented(c, &st.Theme,
+				text(v.Lang, followSystem),
+				text(v.Lang, themeDark),
+				text(v.Lang, themeLight),
+			)
+			if appearance.Changed() {
+				a.SetTheme(app.Theme(st.Theme))
+			}
+		})
 	})
 }
 

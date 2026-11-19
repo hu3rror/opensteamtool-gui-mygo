@@ -25,6 +25,7 @@ func factsFor(language app.Language, locale string, cfg config.Config, host rt.R
 
 func withConfig(facts app.Facts, cfg config.Config, host rt.Runtime, dir string) app.Facts {
 	facts.Language = cfg.Language
+	facts.Theme = cfg.Theme
 	facts.SteamPath = cfg.SteamPath
 	facts.SteamPathValid = cfg.SteamPath != "" && host.IsDir(cfg.SteamPath)
 	facts.Deployment = app.NotApplied

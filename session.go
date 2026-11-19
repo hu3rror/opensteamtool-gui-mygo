@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"opensteamtool-gui-mygo/internal/app"
@@ -47,6 +48,11 @@ type session struct {
 	quit    func()
 	now     func() time.Time
 
+	systemDark func() (bool, bool)
+	applyDark  func(bool)
+	watchTheme func(func()) func()
+	stopTheme  func()
+
 	tray      bool
 	quitting  bool
 	ballooned bool
@@ -71,11 +77,17 @@ func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg c
 		retray:  func() {},
 		now:     time.Now,
 		compat:  compat.NewRound(),
+
+		systemDark: systemAppearance,
+		applyDark:  applyAppearance,
+		watchTheme: mygo.Theme.OnUpdated,
+		stopTheme:  func() {},
 	}
 	s.facts = factsFor(cfg.Language, locale, cfg, host, s.dir)
 	s.facts.NeedsSetup = !readable
 	s.actions = view.Actions{
 		SetLanguage:         s.setLanguage,
+		SetTheme:            s.setTheme,
 		CommitPath:          s.commitSteamPath,
 		Browse:              s.browseSteamPath,
 		ApplySource:         s.applySource,
@@ -90,6 +102,9 @@ func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg c
 		Confirm:             s.confirmPending,
 		Cancel:              s.declinePending,
 		Prewarm:             func() { s.prewarm(true) },
+		CheckToolUpdate:     func() { s.checkToolUpdate() },
+		OpenProject:         func() { s.openURL(projectURL) },
+		OpenDownload:        func() { s.openURL(releasesURL) },
 	}
 	return s
 }
@@ -108,6 +123,7 @@ func (s *session) syncSettings(facts app.Facts) {
 	s.uiState.PathError = false
 	s.uiState.PathFocused = false
 	s.uiState.Language = int(facts.Language)
+	s.uiState.Theme = int(facts.Theme)
 }
 
 func (s *session) snapshot() app.Facts {

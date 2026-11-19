@@ -57,9 +57,22 @@ const (
 	tabLua                   key = "Lua 配置"
 	tabAbout                 key = "关于"
 	languageRow              key = "语言"
-	languageAuto             key = "跟随系统"
+	followSystem             key = "跟随系统"
 	languageChinese          key = "简体中文"
 	languageEnglish          key = "英语"
+	themeRow                 key = "主题"
+	themeDark                key = "深色"
+	themeLight               key = "浅色"
+	appVersionLabel          key = "软件版本"
+	appUpdateRow             key = "应用更新"
+	projectPage              key = "项目主页"
+	checkToolUpdate          key = "检查应用更新"
+	toolChecking             key = "正在检查应用更新..."
+	toolUpToDate             key = "已是最新版本"
+	toolAvailable            key = "发现新版本 %s"
+	openDownloadPage         key = "打开下载页"
+	runWizard                key = "重新运行向导"
+	runWizardHint            key = "以当前语言、主题与 Steam 路径为初值重新运行设置向导。"
 	steamPathRow             key = "Steam 安装路径"
 	steamPathHint            key = "选择 steam.exe 所在的文件夹"
 	steamPathError           key = "目录不存在或无法读取"
@@ -172,9 +185,22 @@ var copyTable = map[key]string{
 	tabLua:                   "Lua configuration",
 	tabAbout:                 "About",
 	languageRow:              "Language",
-	languageAuto:             "Follow system",
+	followSystem:             "Follow system",
 	languageChinese:          "Chinese (simplified)",
 	languageEnglish:          "English",
+	themeRow:                 "Theme",
+	themeDark:                "Dark",
+	themeLight:               "Light",
+	appVersionLabel:          "App version",
+	appUpdateRow:             "App update",
+	projectPage:              "Project page",
+	checkToolUpdate:          "Check for app updates",
+	toolChecking:             "Checking for app updates...",
+	toolUpToDate:             "Up to date",
+	toolAvailable:            "Version %s is available",
+	openDownloadPage:         "Open the download page",
+	runWizard:                "Run the setup wizard again",
+	runWizardHint:            "Run the setup wizard again, starting from the current language, theme and Steam path",
 	steamPathRow:             "Steam installation path",
 	steamPathHint:            "Choose the folder that holds steam.exe",
 	steamPathError:           "The directory does not exist or cannot be read",
@@ -334,6 +360,10 @@ func text(l app.Lang, k key) string {
 
 func conflictText(l app.Lang, name string) string {
 	return strings.Replace(text(l, conflictFound), "%s", name, 1)
+}
+
+func toolAvailableText(l app.Lang, version string) string {
+	return strings.Replace(text(l, toolAvailable), "%s", version, 1)
 }
 
 func Title(l app.Lang) string { return text(l, windowTitle) }

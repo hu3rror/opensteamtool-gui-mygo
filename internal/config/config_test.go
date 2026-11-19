@@ -40,7 +40,7 @@ func TestAMissingConfigIsUnreadable(t *testing.T) {
 
 func TestSaveThenLoadCarriesTheChoices(t *testing.T) {
 	dir := t.TempDir()
-	want := config.Config{SteamPath: `C:\Program Files\Steam`, Language: app.LanguageEnglish, Source: source.Community(), Entry: source.EntryDefault}
+	want := config.Config{SteamPath: `C:\Program Files\Steam`, Language: app.LanguageEnglish, Theme: app.ThemeDark, Source: source.Community(), Entry: source.EntryDefault}
 	if err := config.Save(dir, want); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestAnUnreadableConfigIsNeverPartiallyTaken(t *testing.T) {
 
 func TestAFieldThisVersionDoesNotUseIsTolerated(t *testing.T) {
 	dir := t.TempDir()
-	write(t, dir, `{"version": 1, "steam_path": "C:\\Steam", "language": "auto", "theme": "neon"}`)
+	write(t, dir, `{"version": 1, "steam_path": "C:\\Steam", "language": "auto", "accent": "neon"}`)
 	got, readable, err := config.Load(dir, host(`C:\Steam`))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -133,6 +133,29 @@ func TestAFieldThisVersionDoesNotUseIsTolerated(t *testing.T) {
 	}
 	if got.SteamPath != `C:\Steam` || got.Language != app.LanguageAuto {
 		t.Errorf("loaded %+v, want the strict fields", got)
+	}
+}
+
+func TestTheThemeFallsBackToTheSystemAlone(t *testing.T) {
+	tests := []struct {
+		body string
+		want app.Theme
+	}{
+		{`{"version": 1, "steam_path": "", "language": "auto"}`, app.ThemeSystem},
+		{`{"version": 1, "steam_path": "", "language": "auto", "theme": "neon"}`, app.ThemeSystem},
+		{`{"version": 1, "steam_path": "", "language": "auto", "theme": "dark"}`, app.ThemeDark},
+		{`{"version": 1, "steam_path": "", "language": "auto", "theme": "light"}`, app.ThemeLight},
+	}
+	for _, test := range tests {
+		dir := t.TempDir()
+		write(t, dir, test.body)
+		got, readable, err := config.Load(dir, host())
+		if err != nil || !readable {
+			t.Fatalf("Load(%s): %v, readable %v", test.body, err, readable)
+		}
+		if got.Theme != test.want {
+			t.Errorf("Load(%s) reads theme %v, want %v", test.body, got.Theme, test.want)
+		}
 	}
 }
 
@@ -283,6 +306,24 @@ func TestASnapshotThisVersionCannotReadIsIgnored(t *testing.T) {
 		}
 		if got.Snapshot != (config.DeploymentSnapshot{}) {
 			t.Errorf("Load(%s) reads snapshot %+v, want none", body, got.Snapshot)
+		}
+	}
+}
+
+func TestEveryThemeSurvivesARestart(t *testing.T) {
+	for _, theme := range []app.Theme{app.ThemeSystem, app.ThemeDark, app.ThemeLight} {
+		dir := t.TempDir()
+		steam := filepath.Join(dir, "Steam")
+		cfg := config.Config{SteamPath: steam, Language: app.LanguageAuto, Theme: theme, Source: source.Community(), Entry: source.EntryDefault}
+		if err := config.Save(dir, cfg); err != nil {
+			t.Fatalf("Save(%v): %v", theme, err)
+		}
+		got, readable, err := config.Load(dir, host(steam))
+		if err != nil || !readable {
+			t.Fatalf("Load(%v): %v, readable %v", theme, err, readable)
+		}
+		if got.Theme != theme {
+			t.Errorf("theme %v reloads as %v", theme, got.Theme)
 		}
 	}
 }

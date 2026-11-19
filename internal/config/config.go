@@ -29,6 +29,7 @@ type DeploymentSnapshot struct {
 type Config struct {
 	SteamPath string
 	Language  app.Language
+	Theme     app.Theme
 	Source    source.Source
 	Entry     source.Entry
 	Snapshot  DeploymentSnapshot
@@ -38,6 +39,7 @@ type wire struct {
 	Version            int             `json:"version"`
 	SteamPath          *string         `json:"steam_path"`
 	Language           *string         `json:"language"`
+	Theme              *string         `json:"theme"`
 	PatchSource        *string         `json:"patch_source"`
 	Entry              *string         `json:"entry"`
 	DeploymentSnapshot json.RawMessage `json:"deployment_snapshot"`
@@ -81,6 +83,20 @@ var languageNames = map[app.Language]string{
 	app.LanguageChinese: "zh",
 	app.LanguageEnglish: "en",
 }
+var themeNames = map[app.Theme]string{
+	app.ThemeSystem: "system",
+	app.ThemeDark:   "dark",
+	app.ThemeLight:  "light",
+}
+
+func themeFrom(name string) (app.Theme, bool) {
+	for theme, candidate := range themeNames {
+		if candidate == name {
+			return theme, true
+		}
+	}
+	return app.ThemeSystem, false
+}
 
 var entryNames = map[source.Entry]string{
 	source.EntryDefault: "default",
@@ -121,7 +137,7 @@ func Load(dir string, host rt.Runtime) (Config, bool, error) {
 	if !ok {
 		return Config{}, false, fmt.Errorf("read config: %q is not a language", *w.Language)
 	}
-	cfg := Config{SteamPath: *w.SteamPath, Language: language, Source: source.Community(), Entry: source.EntryDefault}
+	cfg := Config{SteamPath: *w.SteamPath, Language: language, Theme: app.ThemeSystem, Source: source.Community(), Entry: source.EntryDefault}
 	if w.PatchSource != nil {
 		parsed, err := source.Parse(*w.PatchSource)
 		if err != nil {
@@ -136,6 +152,14 @@ func Load(dir string, host rt.Runtime) (Config, bool, error) {
 			log.Printf("read config: %q is not an injection entry, using default", *w.Entry)
 		} else {
 			cfg.Entry = entry
+		}
+	}
+	if w.Theme != nil {
+		theme, ok := themeFrom(*w.Theme)
+		if !ok {
+			log.Printf("read config: %q is not a theme, following the system", *w.Theme)
+		} else {
+			cfg.Theme = theme
 		}
 	}
 	cfg.Entry = source.Effective(cfg.Source, cfg.Entry)
@@ -153,7 +177,11 @@ func Save(dir string, cfg Config) error {
 	}
 	patchSource := source.OrDefault(cfg.Source).Key
 	entry := entryNames[source.Effective(source.OrDefault(cfg.Source), cfg.Entry)]
-	w := wire{Version: Version, SteamPath: &cfg.SteamPath, Language: &language, PatchSource: &patchSource, Entry: &entry}
+	theme, ok := themeNames[cfg.Theme]
+	if !ok {
+		return fmt.Errorf("save config: %d is not a theme", cfg.Theme)
+	}
+	w := wire{Version: Version, SteamPath: &cfg.SteamPath, Language: &language, Theme: &theme, PatchSource: &patchSource, Entry: &entry}
 	if cfg.Snapshot != (DeploymentSnapshot{}) {
 		snapshot, err := json.Marshal(snapshotWire{
 			Source:       cfg.Snapshot.Source,

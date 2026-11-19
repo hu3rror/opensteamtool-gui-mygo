@@ -98,6 +98,7 @@ const (
 	BusyUninstall
 	BusyStartSteam
 	BusyStopSteam
+	BusyCheckTool
 )
 
 var stageStates = map[Busy]MainState{
@@ -231,6 +232,7 @@ const (
 
 type Facts struct {
 	Language        Language
+	Theme           Theme
 	Locale          string
 	NeedsSetup      bool
 	SteamPath       string
@@ -245,6 +247,10 @@ type Facts struct {
 	OnlineVersion   string
 	UpdateChecked   bool
 	UpdateFailed    bool
+	ToolVersion     string
+	ToolChecked     bool
+	ToolFailed      bool
+	ToolOnline      string
 	SnapshotBuild   string
 	ClientBuild     string
 	Health          Health
@@ -268,6 +274,8 @@ type View struct {
 	DownloadOffered bool
 	PrimaryDisabled bool
 	UpdateInFlight  Busy
+	Tool            ToolCheck
+	Busy            bool
 	Secondary       []SecondaryAction
 	Pending         Confirmation
 	Health          Health
@@ -295,10 +303,13 @@ func Derive(f Facts) View {
 		Risk:            riskOf(f),
 	}
 	v.Update, v.DownloadOffered = conclusionOf(f)
+	v.Tool = toolCheckOf(f)
 	v.PrimaryDisabled = !f.SteamPathValid || !f.PatchDownloaded || !f.PatchComplete
+	v.Busy = f.Busy != Idle
 	if _, ok := Stage(f.Busy); ok {
 		v.Status.Busy = f.Busy
-	} else {
+	}
+	if f.Busy == BusyCheckUpdate || f.Busy == BusyDownloadPatch {
 		v.UpdateInFlight = f.Busy
 	}
 	if f.Busy == Idle {

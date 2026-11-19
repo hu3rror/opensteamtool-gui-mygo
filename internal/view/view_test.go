@@ -139,6 +139,11 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 			texts: []string{"未应用", "Steam 未运行", "检查中…", "应用补丁并启动 Steam", "检查补丁更新", "设置"},
 		},
 		{
+			name:  "tool check busy leaves the update slot alone",
+			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Busy: app.BusyCheckTool},
+			texts: append([]string{"已应用", "Steam 未运行", "应用补丁并启动 Steam", "检查补丁更新", "设置"}, removal...),
+		},
+		{
 			name:  "download busy keeps the file fact",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Busy: app.BusyDownloadPatch},
 			texts: append([]string{"已应用", "Steam 未运行", "应用补丁并启动 Steam", "检查补丁更新", "正在下载补丁…", "设置"}, removal...),
@@ -332,6 +337,33 @@ func TestAClickOutsideTheDialogKeepsItOpen(t *testing.T) {
 	tt.ClickAt(2, 2)
 	if !s.state.SettingsOpen || !tt.HasText("关闭") {
 		t.Errorf("the dialog closed on a click outside: %q", tt.Texts())
+	}
+}
+
+func TestTheGeneralTabOffersTheThemeAndReportsTheChoice(t *testing.T) {
+	s, tt := dialog(t)
+	var picked []app.Theme
+	s.actions.SetTheme = func(theme app.Theme) { picked = append(picked, theme) }
+
+	for _, label := range []string{"主题", "跟随系统", "深色", "浅色"} {
+		if !tt.HasText(label) {
+			t.Errorf("the dialog shows %q without %q", tt.Texts(), label)
+		}
+	}
+	if err := tt.Click("深色"); err != nil {
+		t.Fatalf("click the dark segment: %v", err)
+	}
+	if !slices.Equal(picked, []app.Theme{app.ThemeDark}) {
+		t.Errorf("picked %v, want the dark theme", picked)
+	}
+	if err := tt.Click("浅色"); err != nil {
+		t.Fatalf("click the light segment: %v", err)
+	}
+	if !slices.Equal(picked, []app.Theme{app.ThemeDark, app.ThemeLight}) {
+		t.Errorf("picked %v, want the light theme second", picked)
+	}
+	if s.state.Theme != int(app.ThemeLight) {
+		t.Errorf("the tab shows theme %d, want the light one", s.state.Theme)
 	}
 }
 
@@ -969,5 +1001,17 @@ func TestTheDetailsOfferTheCacheForAnUncachedComponent(t *testing.T) {
 	}
 	if ran != 1 {
 		t.Errorf("the prewarm ran %d times, want the details action", ran)
+	}
+}
+
+func TestAToolCheckNeverDisablesThePatchButtons(t *testing.T) {
+	tt := shown(t, app.Facts{SteamPathValid: true, Busy: app.BusyCheckTool})
+
+	check, found := tt.Access("检查补丁更新")
+	if !found {
+		t.Fatal("the patch check is gone")
+	}
+	if check.Disabled {
+		t.Error("the patch check waits for the tool check")
 	}
 }

@@ -63,6 +63,7 @@ func (s *session) exit() {
 	for i := 0; i < int(quitGrace/time.Millisecond) && s.steps.Load() > 0; i++ {
 		s.sleep(time.Millisecond)
 	}
+	s.stopTheme()
 	s.quit()
 }
 
