@@ -211,3 +211,122 @@ func TestTheWizardDownloadRunsFromItsOwnButtons(t *testing.T) {
 		t.Errorf("calls = %v, want the download, the skip and the finish", calls)
 	}
 }
+
+func overlaps(a, b ui.Rect) bool {
+	if a.W <= 0 || a.H <= 0 || b.W <= 0 || b.H <= 0 {
+		return false
+	}
+	return a.X < b.X+b.W && b.X < a.X+a.W && a.Y < b.Y+b.H && b.Y < a.Y+a.H
+}
+
+func TestTheWizardFooterNeverOverlapsTheStepBody(t *testing.T) {
+	footers := map[string]bool{"上一步": true, "下一步": true, "跳过": true, "完成": true, "重试": true, "下载并解压": true}
+	for _, size := range []struct{ w, h int }{{480, 360}, {320, 280}} {
+		for _, step := range []app.WizardStep{app.WizardLanguage, app.WizardTheme, app.WizardPath, app.WizardDownload} {
+			for _, shape := range []app.WizardDownloadState{app.WizardNotDownloaded, app.WizardDownloading, app.WizardDownloadFailed, app.WizardDownloaded} {
+				facts := openWizard(app.Facts{SteamPath: "C:/Steam", SteamPathValid: true})
+				facts.Wizard.Step = step
+				facts.Wizard.Download = shape
+				facts.Wizard.Failure = app.NetworkFailed
+				_, tt := wizardScreen(t, facts, view.Actions{})
+				tt.SetSize(size.w, size.h)
+
+				texts := tt.Texts()
+				for _, body := range texts {
+					if footers[body] {
+						continue
+					}
+					bodyRect, ok := tt.Find(body)
+					if !ok {
+						continue
+					}
+					for _, footer := range texts {
+						if !footers[footer] {
+							continue
+						}
+						footerRect, ok := tt.Find(footer)
+						if !ok {
+							continue
+						}
+						if overlaps(bodyRect, footerRect) {
+							t.Errorf("%dx%d step %d shape %d: %q at %+v overlaps the footer %q at %+v", size.w, size.h, step, shape, body, bodyRect, footer, footerRect)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestTheWizardControlsStayApart(t *testing.T) {
+	facts := openWizard(app.Facts{SteamPathValid: true})
+	facts.Wizard.Step = app.WizardDownload
+	facts.Wizard.Download = app.WizardNotDownloaded
+	_, tt := wizardScreen(t, facts, view.Actions{})
+	back, _ := tt.Find("上一步")
+	skip, _ := tt.Find("跳过")
+	primary, _ := tt.Find("下载并解压")
+	for _, pair := range []struct {
+		name string
+		a, b ui.Rect
+	}{{"back and skip", back, skip}, {"skip and primary", skip, primary}, {"back and primary", back, primary}} {
+		if overlaps(pair.a, pair.b) {
+			t.Errorf("%s overlap: %+v and %+v", pair.name, pair.a, pair.b)
+		}
+	}
+	if !(back.X < skip.X && skip.X < primary.X) {
+		t.Errorf("controls sit at %+v, %+v, %+v, want back, skip, then the primary", back, skip, primary)
+	}
+}
+
+func TestThePathStepScrollsToItsSourceChoices(t *testing.T) {
+	facts := openWizard(app.Facts{SteamPath: "C:/Steam", SteamPathValid: true})
+	facts.Wizard.Step = app.WizardPath
+	_, tt := wizardScreen(t, facts, view.Actions{})
+
+	last, found := tt.Find("OpenSteamTool 布局")
+	if !found {
+		t.Fatalf("texts %q, want the layout conclusion", tt.Texts())
+	}
+	if last.W != 0 {
+		t.Fatalf("the layout conclusion at %+v already fits, nothing to scroll", last)
+	}
+
+	tt.Move(240, 150)
+	tt.Scroll(240, 150, 0, 400)
+	last, found = tt.Find("OpenSteamTool 布局")
+	if !found || last.W == 0 {
+		t.Fatalf("the layout conclusion at %+v stays hidden after scrolling", last)
+	}
+}
+
+func TestTheWizardStaysClickableAtTheSmallestWindow(t *testing.T) {
+	next, back := 0, 0
+	facts := openWizard(app.Facts{SteamPath: "C:/Steam", SteamPathValid: true})
+	facts.Wizard.Step = app.WizardTheme
+	_, tt := wizardScreen(t, facts, view.Actions{
+		WizardNext: func() { next++ },
+		WizardBack: func() { back++ },
+	})
+	tt.SetSize(320, 280)
+
+	if primary, found := tt.Access("下一步"); !found || primary.Disabled {
+		t.Fatalf("next = %+v found %v, want it live", primary, found)
+	}
+	rect, found := tt.Find("下一步")
+	if !found {
+		t.Fatalf("texts %q, want the next control", tt.Texts())
+	}
+	if rect.Y+rect.H > 280 {
+		t.Errorf("the next control at %+v sits outside the window", rect)
+	}
+	if err := tt.Click("下一步"); err != nil {
+		t.Fatalf("click next: %v", err)
+	}
+	if back := tt.Click("上一步"); back != nil {
+		t.Fatalf("click back: %v", back)
+	}
+	if next != 1 || back != 1 {
+		t.Errorf("next ran %d times and back %d, want once each", next, back)
+	}
+}
