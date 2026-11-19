@@ -84,7 +84,6 @@ func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg c
 		stopTheme:  func() {},
 	}
 	s.facts = factsFor(cfg.Language, locale, cfg, host, s.dir)
-	s.facts.NeedsSetup = !readable
 	s.actions = view.Actions{
 		SetLanguage:         s.setLanguage,
 		SetTheme:            s.setTheme,
@@ -105,13 +104,26 @@ func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg c
 		CheckToolUpdate:     func() { s.checkToolUpdate() },
 		OpenProject:         func() { s.openURL(projectURL) },
 		OpenDownload:        func() { s.openURL(releasesURL) },
+		WizardNext:          s.wizardNext,
+		WizardBack:          s.wizardBack,
+		WizardRerun:         s.rerunWizard,
+		WizardLanguage:      s.setWizardLanguage,
+		WizardTheme:         s.setWizardTheme,
+		WizardDownload:      func() { s.startWizardDownload() },
+		WizardSkip:          s.finishWizard,
+		WizardFinish:        s.finishWizard,
+	}
+	if !readable {
+		s.openWizard()
 	}
 	return s
 }
 
 func (s *session) view(c *ui.Context) {
 	facts := s.snapshot()
-	if !s.uiState.SettingsOpen {
+	if facts.Wizard.Open {
+		s.syncWizard(facts)
+	} else if !s.uiState.SettingsOpen {
 		s.syncSettings(facts)
 		s.syncSource()
 	}

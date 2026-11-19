@@ -139,15 +139,6 @@ func TestTheSettingsTabsAreInAFixedOrder(t *testing.T) {
 	}
 }
 
-func TestAnUnreadableConfigAsksForSetup(t *testing.T) {
-	if view := app.Derive(app.Facts{NeedsSetup: true}); !view.NeedsSetup {
-		t.Error("an unreadable config does not ask for setup")
-	}
-	if view := app.Derive(app.Facts{Language: app.LanguageAuto}); view.NeedsSetup {
-		t.Error("a readable config asks for setup")
-	}
-}
-
 func TestTheConflictReachesTheScreen(t *testing.T) {
 	view := app.Derive(app.Facts{Conflict: "version.dll"})
 	if view.Conflict != "version.dll" {
@@ -256,5 +247,54 @@ func TestOnlyAnUnadaptedOrMissingCoreRaisesTheRisk(t *testing.T) {
 	unset := app.Facts{Health: app.HealthNotAdapted}
 	if app.Derive(unset).Risk {
 		t.Error("a screen without a path raises the risk line")
+	}
+}
+
+func TestTheWizardReportsItsStepAndOnlyBlocksAnInvalidPath(t *testing.T) {
+	tests := []struct {
+		name         string
+		wizard       app.Wizard
+		open         bool
+		nextDisabled bool
+	}{
+		{name: "language", wizard: app.Wizard{Open: true, Step: app.WizardLanguage}},
+		{name: "theme", wizard: app.Wizard{Open: true, Step: app.WizardTheme}},
+		{name: "path without a value", wizard: app.Wizard{Open: true, Step: app.WizardPath}, nextDisabled: true},
+		{name: "path with a value", wizard: app.Wizard{Open: true, Step: app.WizardPath}},
+		{name: "download", wizard: app.Wizard{Open: true, Step: app.WizardDownload}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			view := app.Derive(app.Facts{Wizard: test.wizard, SteamPathValid: test.wizard.Step == app.WizardPath && !test.nextDisabled})
+			if !view.Wizard.Open {
+				t.Error("an open wizard reads as closed")
+			}
+			if view.Wizard.Step != test.wizard.Step {
+				t.Errorf("the step is %v, want %v", view.Wizard.Step, test.wizard.Step)
+			}
+			if view.Wizard.NextDisabled != test.nextDisabled {
+				t.Errorf("next disabled = %v, want %v", view.Wizard.NextDisabled, test.nextDisabled)
+			}
+		})
+	}
+	if view := app.Derive(app.Facts{}); view.Wizard.Open {
+		t.Error("a settled app shows a wizard")
+	}
+}
+
+func TestTheWizardDownloadStepCarriesItsShapeAndFailure(t *testing.T) {
+	for _, shape := range []app.WizardDownloadState{
+		app.WizardNotDownloaded,
+		app.WizardDownloaded,
+		app.WizardDownloading,
+		app.WizardDownloadFailed,
+	} {
+		view := app.Derive(app.Facts{Wizard: app.Wizard{Open: true, Step: app.WizardDownload, Download: shape, Failure: app.NetworkFailed}})
+		if view.Wizard.Download != shape {
+			t.Errorf("the download shape is %v, want %v", view.Wizard.Download, shape)
+		}
+		if shape == app.WizardDownloadFailed && view.Wizard.Failure != app.NetworkFailed {
+			t.Errorf("the failure is %v, want the network category", view.Wizard.Failure)
+		}
 	}
 }

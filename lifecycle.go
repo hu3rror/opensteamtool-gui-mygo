@@ -18,6 +18,14 @@ const (
 )
 
 func (s *session) closeWindow() bool {
+	if s.wizardOpen() {
+		s.finishWizard()
+		if !s.tray {
+			return true
+		}
+		s.hideToTray()
+		return false
+	}
 	if s.quitting || !s.tray {
 		return true
 	}

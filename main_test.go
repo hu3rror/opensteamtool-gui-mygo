@@ -371,40 +371,41 @@ func TestTheLanguageAppliesAtOnceAndIsRemembered(t *testing.T) {
 	}
 }
 
-func TestAnUnreadableConfigAsksForSetup(t *testing.T) {
+func TestAnUnreadableConfigOpensTheWizardOnItsFirstStep(t *testing.T) {
 	s := newSession(&rt.Fake{}, noSleep, "zh-CN", config.Config{}, false, t.TempDir())
 	texts := shown(t, s)
-	if !slices.Contains(texts, "尚未完成设置") {
-		t.Fatalf("texts = %q, want the setup notice", texts)
-	}
-	if !slices.Contains(texts, "打开设置") {
-		t.Fatalf("texts = %q, want the way into the settings", texts)
+	if !slices.Contains(texts, "首次运行向导") || !slices.Contains(texts, "第 1 / 4 步") {
+		t.Fatalf("texts = %q, want the wizard on the language step", texts)
 	}
 	if slices.Contains(texts, "未应用") {
-		t.Fatalf("texts = %q, the main screen must wait for the setup", texts)
+		t.Fatalf("texts = %q, the main screen must wait for the wizard", texts)
 	}
 }
 
-func TestCommittingAPathLeavesTheSetupScreenBehind(t *testing.T) {
+func TestThePathStepKeepsTheWizardUntilTheDownloadStep(t *testing.T) {
 	dir := t.TempDir()
 	steam := t.TempDir()
 	host := &rt.Fake{Dirs: map[string]bool{steam: true}}
 	s := newSession(host, noSleep, "zh-CN", config.Config{}, false, t.TempDir())
 	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
 
-	if !slices.Contains(shown(t, s), "尚未完成设置") {
-		t.Fatalf("texts = %q, want the setup screen first", shown(t, s))
+	if !slices.Contains(shown(t, s), "首次运行向导") {
+		t.Fatalf("texts = %q, want the wizard first", shown(t, s))
 	}
-	if !s.actions.CommitPath(steam) {
-		t.Fatal("a readable directory was refused")
+	s.actions.WizardNext()
+	s.actions.WizardNext()
+	if !slices.Contains(shown(t, s), "第 3 / 4 步") {
+		t.Fatalf("texts = %q, want the path step", shown(t, s))
 	}
+	s.uiState.PathDraft = steam
+	s.actions.WizardNext()
 
 	texts := shown(t, s)
-	if slices.Contains(texts, "尚未完成设置") {
-		t.Fatalf("texts = %q, the setup screen must clear", texts)
+	if !slices.Contains(texts, "第 4 / 4 步") {
+		t.Fatalf("texts = %q, the valid path must reach the download step", texts)
 	}
-	if !slices.Contains(texts, "未应用") {
-		t.Fatalf("texts = %q, want the main screen", texts)
+	if slices.Contains(texts, "未应用") {
+		t.Fatalf("texts = %q, the main screen must wait for the wizard", texts)
 	}
 	cfg, readable, err := config.Load(dir, host)
 	if err != nil || !readable {
@@ -412,6 +413,21 @@ func TestCommittingAPathLeavesTheSetupScreenBehind(t *testing.T) {
 	}
 	if cfg.SteamPath != steam {
 		t.Fatalf("saved path = %q, want the committed one", cfg.SteamPath)
+	}
+}
+
+func TestAnInvalidPathStaysOnThePathStep(t *testing.T) {
+	s := newSession(&rt.Fake{}, noSleep, "zh-CN", config.Config{}, false, t.TempDir())
+	s.actions.WizardNext()
+	s.actions.WizardNext()
+	s.uiState.PathDraft = "Z:/not-a-directory"
+	s.actions.WizardNext()
+
+	if s.uiState.PathError != true {
+		t.Error("the invalid path was not marked")
+	}
+	if !slices.Contains(shown(t, s), "第 3 / 4 步") {
+		t.Fatalf("texts = %q, the wizard must stay on the path step", shown(t, s))
 	}
 }
 
@@ -465,7 +481,7 @@ func TestARepeatedCommitDoesNotWriteAgain(t *testing.T) {
 	}
 }
 
-func TestAStaleSavedPathRoutesToSetupWithThePathKept(t *testing.T) {
+func TestAStaleSavedPathOpensTheWizardWithThePathKept(t *testing.T) {
 	dir := t.TempDir()
 	gone := filepath.Join(t.TempDir(), "gone")
 	if err := config.Save(dir, config.Config{SteamPath: gone, Language: app.LanguageChinese}); err != nil {
@@ -477,11 +493,11 @@ func TestAStaleSavedPathRoutesToSetupWithThePathKept(t *testing.T) {
 		t.Fatal("a saved path that is not a directory came back without a reason")
 	}
 	s := newSession(&rt.Fake{}, noSleep, "zh-CN", cfg, readable, t.TempDir())
-	if !slices.Contains(shown(t, s), "尚未完成设置") {
-		t.Fatalf("texts = %q, want the setup screen", shown(t, s))
+	if !slices.Contains(shown(t, s), "首次运行向导") {
+		t.Fatalf("texts = %q, want the wizard", shown(t, s))
 	}
 	if s.uiState.PathDraft != gone {
-		t.Fatalf("draft = %q, want the saved path for the Steam tab", s.uiState.PathDraft)
+		t.Fatalf("draft = %q, want the saved path for the path step", s.uiState.PathDraft)
 	}
 }
 

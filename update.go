@@ -94,28 +94,32 @@ func extractFailure(err error) app.Result {
 	return app.LocalIOFailed
 }
 
+func (s *session) fetchPackage(src source.Source, entry source.Entry, asset patch.Asset, version string) app.Result {
+	archive, err := s.host.Get(asset.URL)
+	if err != nil {
+		log.Printf("fetch the patch package: %v", err)
+		return app.NetworkFailed
+	}
+	files, err := patch.Extract(archive, src.Layout, entry)
+	if err != nil {
+		log.Printf("read the patch package: %v", err)
+		return extractFailure(err)
+	}
+	if err := patch.Install(patch.Dir(s.dir, src), files, version); err != nil {
+		log.Printf("fill the patch cache: %v", err)
+		return app.WriteFailed
+	}
+	return app.NoResult
+}
+
 func (s *session) runDownload() {
 	s.mu.Lock()
 	chosen := s.online
 	s.mu.Unlock()
 	cfg := s.config()
 	src := source.OrDefault(cfg.Source)
-	entry := source.Effective(src, cfg.Entry)
-	archive, err := s.host.Get(chosen.asset.URL)
-	if err != nil {
-		log.Printf("fetch the patch package: %v", err)
-		s.onUI(func() { s.done(app.NetworkFailed) })
-		return
-	}
-	files, err := patch.Extract(archive, src.Layout, entry)
-	if err != nil {
-		log.Printf("read the patch package: %v", err)
-		s.onUI(func() { s.done(extractFailure(err)) })
-		return
-	}
-	if err := patch.Install(patch.Dir(s.dir, src), files, chosen.version); err != nil {
-		log.Printf("fill the patch cache: %v", err)
-		s.onUI(func() { s.done(app.WriteFailed) })
+	if failure := s.fetchPackage(src, source.Effective(src, cfg.Entry), chosen.asset, chosen.version); failure != app.NoResult {
+		s.onUI(func() { s.done(failure) })
 		return
 	}
 	s.onUI(func() {

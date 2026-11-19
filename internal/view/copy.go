@@ -1,6 +1,7 @@
 package view
 
 import (
+	"strconv"
 	"strings"
 
 	"opensteamtool-gui-mygo/internal/app"
@@ -80,9 +81,6 @@ const (
 	closeButton              key = "关闭"
 	steamCfgNote             key = "steam.cfg 已锁定 Steam 客户端自动更新"
 	steamDialogTitle         key = "选择 Steam 目录"
-	setupNotice              key = "尚未完成设置"
-	setupHint                key = "请在设置中选择 Steam 安装目录"
-	openSettings             key = "打开设置"
 	officialSource           key = "官方源（长期未更新）"
 	communitySource          key = "社区维护"
 	steamDaddySource         key = "社区维护（SteamDaddy 布局）"
@@ -135,6 +133,22 @@ const (
 	riskSettings             key = "设置 →"
 	componentRow             key = "%s（%s）"
 	addressError             key = "地址无效：需要 github.com 仓库地址"
+	wizardTitle              key = "首次运行向导"
+	wizardStep               key = "第 %s / 4 步"
+	wizardLanguagePrompt     key = "请选择界面语言："
+	wizardThemePrompt        key = "请选择界面主题："
+	wizardPathPrompt         key = "请确认 Steam 安装路径："
+	wizardPathError          key = "路径无效：请选择有效的 Steam 安装目录"
+	nextStep                 key = "下一步"
+	backStep                 key = "上一步"
+	wizardNotDownloaded      key = "补丁尚未下载。点击下方按钮开始下载并解压（可选跳过）。"
+	wizardDownloaded         key = "补丁已下载，无需再下载。"
+	wizardDownloading        key = "正在下载并解压补丁..."
+	wizardDownloadFailed     key = "补丁下载失败：%s"
+	wizardDownload           key = "下载并解压"
+	wizardRetry              key = "重试"
+	wizardFinish             key = "完成"
+	wizardSkip               key = "跳过"
 )
 
 var copyTable = map[key]string{
@@ -208,9 +222,6 @@ var copyTable = map[key]string{
 	closeButton:              "Close",
 	steamCfgNote:             "steam.cfg already locks the Steam client's automatic updates",
 	steamDialogTitle:         "Choose the Steam directory",
-	setupNotice:              "Setup is not complete",
-	setupHint:                "Choose the Steam installation folder in the settings",
-	openSettings:             "Open settings",
 	officialSource:           "Official (not updated for a long time)",
 	communitySource:          "Community-maintained",
 	steamDaddySource:         "Community-maintained (SteamDaddy layout)",
@@ -263,6 +274,22 @@ var copyTable = map[key]string{
 	riskSettings:             "Settings →",
 	componentRow:             "%s (%s)",
 	addressError:             "Invalid address: a github.com repository address is required",
+	wizardTitle:              "First-run wizard",
+	wizardStep:               "Step %s of 4",
+	wizardLanguagePrompt:     "Choose the interface language:",
+	wizardThemePrompt:        "Choose the interface theme:",
+	wizardPathPrompt:         "Confirm the Steam installation path:",
+	wizardPathError:          "Invalid path: choose a valid Steam installation folder",
+	nextStep:                 "Next",
+	backStep:                 "Back",
+	wizardNotDownloaded:      "The patch is not downloaded yet. Use the button below to download and extract it, or skip.",
+	wizardDownloaded:         "The patch is already downloaded.",
+	wizardDownloading:        "Downloading and extracting the patch...",
+	wizardDownloadFailed:     "Patch download failed: %s",
+	wizardDownload:           "Download and extract",
+	wizardRetry:              "Retry",
+	wizardFinish:             "Finish",
+	wizardSkip:               "Skip",
 }
 
 var mainStateKeys = map[app.MainState]key{
@@ -367,6 +394,14 @@ func toolAvailableText(l app.Lang, version string) string {
 }
 
 func Title(l app.Lang) string { return text(l, windowTitle) }
+
+func WizardStepLabel(l app.Lang, step app.WizardStep) string {
+	return strings.Replace(text(l, wizardStep), "%s", strconv.Itoa(int(step)+1), 1)
+}
+
+func WizardDownloadFailure(l app.Lang, result app.Result) string {
+	return strings.Replace(text(l, wizardDownloadFailed), "%s", text(l, resultCopies[result]), 1)
+}
 
 func RestartSteam(l app.Lang) string   { return text(l, restartSteam) }
 func SteamDirectory(l app.Lang) string { return text(l, steamDialogTitle) }
