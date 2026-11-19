@@ -439,3 +439,20 @@ func TestACachedSignatureCarriesAnUnreachableNetwork(t *testing.T) {
 		t.Fatalf("health = %v, want the cache carrying an unreachable network", health)
 	}
 }
+
+func TestEachCoreIsReadOncePerRound(t *testing.T) {
+	host, steam, _, _ := steamWithCores(t)
+
+	compat.Probes(host, steam, t.TempDir(), nil)
+
+	reads := map[string]int{}
+	for _, path := range host.Reads {
+		reads[path]++
+	}
+	for _, name := range compat.CoreFiles() {
+		path := filepath.Join(steam, name)
+		if reads[path] != 1 {
+			t.Errorf("read %s %d times, want once", path, reads[path])
+		}
+	}
+}
