@@ -112,9 +112,6 @@ func (s *session) save(cfg config.Config) {
 		log.Printf("save config: %v", err)
 		return
 	}
-	s.mu.Lock()
-	s.facts.NeedsSetup = false
-	s.mu.Unlock()
 }
 
 func (s *session) watch(interval time.Duration) {

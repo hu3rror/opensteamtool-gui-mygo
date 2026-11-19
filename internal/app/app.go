@@ -234,7 +234,7 @@ type Facts struct {
 	Language        Language
 	Theme           Theme
 	Locale          string
-	NeedsSetup      bool
+	Wizard          Wizard
 	SteamPath       string
 	SteamPathValid  bool
 	SteamRunning    bool
@@ -265,7 +265,7 @@ type Facts struct {
 
 type View struct {
 	Lang            Lang
-	NeedsSetup      bool
+	Wizard          WizardView
 	MainState       MainState
 	Explanation     Explanation
 	Status          Status
@@ -289,7 +289,7 @@ type View struct {
 func Derive(f Facts) View {
 	v := View{
 		Lang:            f.Language.Resolve(f.Locale),
-		NeedsSetup:      f.NeedsSetup,
+		Wizard:          wizardViewOf(f.Wizard, f.SteamPathValid),
 		MainState:       mainStateOf(f),
 		Conflict:        f.Conflict,
 		Status:          Status{SteamRunning: f.SteamRunning, Result: f.Result},

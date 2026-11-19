@@ -534,23 +534,6 @@ func TestTheDialogKeepsTheTabItWasLeftOn(t *testing.T) {
 	}
 }
 
-func TestTheSetupScreenOffersSettingsOnTheSteamTab(t *testing.T) {
-	s := &screen{facts: app.Facts{Locale: "zh-CN", NeedsSetup: true}}
-	tt := ui.NewTester(s.view, 480, 360)
-	if !tt.HasText("尚未完成设置") {
-		t.Fatalf("texts %q, want the setup notice", tt.Texts())
-	}
-	if tt.HasText("未应用") {
-		t.Errorf("texts %q, the setup screen shows the main state", tt.Texts())
-	}
-	if err := tt.Click("打开设置"); err != nil {
-		t.Fatalf("click open settings: %v", err)
-	}
-	if !s.state.SettingsOpen || s.state.Tab != int(app.TabSteam) {
-		t.Errorf("settings open = %v on tab %d, want the Steam tab", s.state.SettingsOpen, s.state.Tab)
-	}
-}
-
 func TestTheCloseButtonStaysVisibleWhileTheContentScrolls(t *testing.T) {
 	s, tt := dialog(t)
 	if err := tt.Click("Steam 设置"); err != nil {

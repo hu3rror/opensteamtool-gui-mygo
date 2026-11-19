@@ -29,6 +29,9 @@ type State struct {
 	Entry source.Entry
 
 	CompatDetails bool
+
+	WizardLanguage int
+	WizardTheme    int
 }
 
 type Actions struct {
@@ -51,13 +54,21 @@ type Actions struct {
 	CheckToolUpdate     func()
 	OpenProject         func()
 	OpenDownload        func()
+	WizardNext          func()
+	WizardBack          func()
+	WizardRerun         func()
+	WizardLanguage      func(app.Language)
+	WizardTheme         func(app.Theme)
+	WizardDownload      func()
+	WizardSkip          func()
+	WizardFinish        func()
 }
 
 func Main(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
 	ui.Column(c).Fill().Padding(t.Space(6)).Gap(t.Space(2)).Children(func() {
-		if v.NeedsSetup {
-			setup(c, v, st)
+		if v.Wizard.Open {
+			wizard(c, v, st, a)
 			return
 		}
 		mainScreen(c, v, st, a)
@@ -68,14 +79,144 @@ func Main(c *ui.Context, v app.View, st *State, a Actions) {
 	confirm(c, v, a)
 }
 
-func setup(c *ui.Context, v app.View, st *State) {
+func wizard(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
-	ui.Text(c, text(v.Lang, setupNotice)).Role(ui.RoleStatus)
-	ui.Text(c, text(v.Lang, setupHint)).TextColor(t.TextMuted)
-	if ui.Button(c, text(v.Lang, openSettings)).Clicked() {
-		st.Tab = int(app.TabSteam)
-		st.SettingsOpen = true
+	ui.Row(c).Fill().Gap(t.Space(4)).Children(func() {
+		ui.Text(c, text(v.Lang, wizardTitle)).Role(ui.RoleStatus).FontSize(t.FontSize * 1.5)
+		ui.Spacer(c)
+		ui.Text(c, WizardStepLabel(v.Lang, v.Wizard.Step)).TextColor(t.TextMuted)
+	})
+	ui.Column(c).Grow(1).Gap(t.Space(2)).Children(func() {
+		switch v.Wizard.Step {
+		case app.WizardLanguage:
+			ui.Text(c, text(v.Lang, wizardLanguagePrompt))
+			choice := ui.Segmented(c, &st.WizardLanguage,
+				text(v.Lang, followSystem),
+				text(v.Lang, languageChinese),
+				text(v.Lang, languageEnglish),
+			)
+			if choice.Changed() {
+				a.WizardLanguage(app.Language(st.WizardLanguage))
+			}
+		case app.WizardTheme:
+			ui.Text(c, text(v.Lang, wizardThemePrompt))
+			choice := ui.Segmented(c, &st.WizardTheme,
+				text(v.Lang, followSystem),
+				text(v.Lang, themeDark),
+				text(v.Lang, themeLight),
+			)
+			if choice.Changed() {
+				a.WizardTheme(app.Theme(st.WizardTheme))
+			}
+		case app.WizardPath:
+			wizardPath(c, v, st, a)
+		case app.WizardDownload:
+			downloadShape(c, v)
+		}
+	})
+	if v.Wizard.Step == app.WizardDownload {
+		downloadActions(c, v, a)
+		return
 	}
+	ui.Row(c).Gap(t.Space(2)).Children(func() {
+		wizardBack(c, v, a)
+		ui.Spacer(c)
+		if ui.Button(c, text(v.Lang, nextStep)).Disabled(v.Wizard.NextDisabled).Clicked() {
+			a.WizardNext()
+		}
+	})
+}
+
+func wizardBack(c *ui.Context, v app.View, a Actions) {
+	if v.Wizard.Step == app.WizardLanguage {
+		return
+	}
+	if ui.Button(c, text(v.Lang, backStep)).Clicked() {
+		a.WizardBack()
+	}
+}
+
+func wizardPath(c *ui.Context, v app.View, st *State, a Actions) {
+	t := c.Theme()
+	pathField(c, v, st, a, text(v.Lang, wizardPathPrompt), wizardPathError, "")
+	if ui.Button(c, text(v.Lang, browse)).Clicked() {
+		a.Browse()
+	}
+	sourceChoices(c, v, st)
+	ui.Text(c, text(v.Lang, fileLayout)).TextColor(t.TextMuted)
+	ui.Text(c, text(v.Lang, layoutLabels[st.Draft().Layout()])).TextColor(t.TextMuted)
+}
+
+func sourceChoices(c *ui.Context, v app.View, st *State) {
+	ui.RadioGroup(c, func() {
+		for _, builtin := range source.Builtins() {
+			if ui.Radio(c, &st.SourceChoice, builtin.Key, text(v.Lang, sourceLabels[builtin.Key])).Changed() {
+				st.SourceError = false
+			}
+		}
+		if ui.Radio(c, &st.SourceChoice, CustomChoice, text(v.Lang, customRepository)).Changed() {
+			st.SourceError = false
+		}
+	})
+	if st.SourceChoice != CustomChoice {
+		return
+	}
+	submitted := false
+	field := ui.Field(c, text(v.Lang, customSourceHint), func() {
+		input := ui.TextInput(c, &st.SourceCustom).Bind(&st.SourceHandle)
+		submitted = input.Submitted()
+	})
+	if st.SourceError {
+		field.Error(text(v.Lang, addressError))
+	}
+	focused := st.SourceHandle.Focused(c)
+	if submitted || (st.SourceFocused && !focused) {
+		st.commitSource()
+	}
+	st.SourceFocused = focused
+}
+
+func downloadShape(c *ui.Context, v app.View) {
+	t := c.Theme()
+	w := v.Wizard
+	switch w.Download {
+	case app.WizardNotDownloaded:
+		ui.Text(c, text(v.Lang, wizardNotDownloaded))
+	case app.WizardDownloaded:
+		ui.Text(c, text(v.Lang, wizardDownloaded))
+	case app.WizardDownloading:
+		ui.Text(c, text(v.Lang, wizardDownloading))
+	case app.WizardDownloadFailed:
+		ui.Text(c, WizardDownloadFailure(v.Lang, w.Failure)).Role(ui.RoleStatus).TextColor(t.Warning)
+	}
+}
+
+func downloadActions(c *ui.Context, v app.View, a Actions) {
+	t := c.Theme()
+	w := v.Wizard
+	ui.Row(c).Gap(t.Space(2)).Children(func() {
+		wizardBack(c, v, a)
+		if w.Download != app.WizardDownloaded {
+			if ui.Button(c, text(v.Lang, wizardSkip)).Clicked() {
+				a.WizardSkip()
+			}
+		}
+		ui.Spacer(c)
+		switch w.Download {
+		case app.WizardNotDownloaded:
+			if ui.Button(c, text(v.Lang, wizardDownload)).Clicked() {
+				a.WizardDownload()
+			}
+		case app.WizardDownloaded:
+			if ui.Button(c, text(v.Lang, wizardFinish)).Clicked() {
+				a.WizardFinish()
+			}
+		case app.WizardDownloadFailed:
+			if ui.Button(c, text(v.Lang, wizardRetry)).Clicked() {
+				a.WizardDownload()
+			}
+		}
+	})
 }
 
 func mainScreen(c *ui.Context, v app.View, st *State, a Actions) {
@@ -348,7 +489,9 @@ func aboutPage(c *ui.Context, v app.View, a Actions) {
 			if ui.Button(c, text(v.Lang, projectPage)).Clicked() {
 				a.OpenProject()
 			}
-			ui.Button(c, text(v.Lang, runWizard)).Disabled(true).Clicked()
+			if ui.Button(c, text(v.Lang, runWizard)).Clicked() {
+				a.WizardRerun()
+			}
 		})
 		ui.Text(c, text(v.Lang, runWizardHint)).TextColor(t.TextMuted)
 	})
@@ -396,18 +539,19 @@ func generalPage(c *ui.Context, v app.View, st *State, a Actions) {
 	})
 }
 
-func steamPage(c *ui.Context, v app.View, st *State, a Actions) {
-	t := c.Theme()
+func pathField(c *ui.Context, v app.View, st *State, a Actions, label string, errorText key, description string) {
 	submitted := false
-	label := text(v.Lang, steamPathRow)
 	field := ui.Field(c, label, func() {
 		input := ui.TextInput(c, &st.PathDraft).
 			Label(label).
 			Bind(&st.PathHandle)
 		submitted = input.Submitted()
-	}).Description(text(v.Lang, steamPathHint))
+	})
+	if description != "" {
+		field.Description(description)
+	}
 	if st.PathError {
-		field.Error(text(v.Lang, steamPathError))
+		field.Error(text(v.Lang, errorText))
 	}
 	if submitted {
 		st.commitPath(a)
@@ -417,6 +561,11 @@ func steamPage(c *ui.Context, v app.View, st *State, a Actions) {
 		st.commitPath(a)
 	}
 	st.PathFocused = focused
+}
+
+func steamPage(c *ui.Context, v app.View, st *State, a Actions) {
+	t := c.Theme()
+	pathField(c, v, st, a, text(v.Lang, steamPathRow), steamPathError, text(v.Lang, steamPathHint))
 	if ui.Button(c, text(v.Lang, browse)).Clicked() {
 		a.Browse()
 	}
@@ -431,7 +580,7 @@ func (st *State) commitPath(a Actions) {
 
 const CustomChoice = "custom"
 
-func (st *State) draft() source.Draft {
+func (st *State) Draft() source.Draft {
 	if st.SourceChoice == CustomChoice {
 		return source.Draft{Custom: strings.TrimSpace(st.SourceCustom)}
 	}
@@ -439,7 +588,7 @@ func (st *State) draft() source.Draft {
 }
 
 func (st *State) commitSource() {
-	resolved, err := st.draft().Resolve()
+	resolved, err := st.Draft().Resolve()
 	if err != nil {
 		st.SourceError = true
 		return
@@ -471,32 +620,8 @@ func ChoiceOf(s source.Source) string {
 func patchSourcePage(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
 	ui.Column(c).Gap(t.Space(2)).Children(func() {
-		ui.RadioGroup(c, func() {
-			for _, builtin := range source.Builtins() {
-				if ui.Radio(c, &st.SourceChoice, builtin.Key, text(v.Lang, sourceLabels[builtin.Key])).Changed() {
-					st.SourceError = false
-				}
-			}
-			if ui.Radio(c, &st.SourceChoice, CustomChoice, text(v.Lang, customRepository)).Changed() {
-				st.SourceError = false
-			}
-		})
-		if st.SourceChoice == CustomChoice {
-			submitted := false
-			field := ui.Field(c, text(v.Lang, customSourceHint), func() {
-				input := ui.TextInput(c, &st.SourceCustom).Bind(&st.SourceHandle)
-				submitted = input.Submitted()
-			})
-			if st.SourceError {
-				field.Error(text(v.Lang, addressError))
-			}
-			focused := st.SourceHandle.Focused(c)
-			if submitted || (st.SourceFocused && !focused) {
-				st.commitSource()
-			}
-			st.SourceFocused = focused
-		}
-		draft := st.draft()
+		sourceChoices(c, v, st)
+		draft := st.Draft()
 		ui.Row(c).Gap(t.Space(2)).Children(func() {
 			ui.Text(c, text(v.Lang, fileLayout)).TextColor(t.TextMuted)
 			ui.Text(c, text(v.Lang, layoutLabels[draft.Layout()]))

@@ -24,6 +24,7 @@ func aboutTab(t *testing.T, facts app.Facts) (*ui.Tester, *int) {
 		CheckToolUpdate: func() { *opened = *opened + 1 },
 		OpenProject:     func() { *opened = *opened + 1 },
 		OpenDownload:    func() { *opened = *opened + 1 },
+		WizardRerun:     func() { *opened = *opened + 1 },
 	}
 	tt := ui.NewTester(s.view, 480, 360)
 	if err := tt.Click("设置"); err != nil {
@@ -110,15 +111,21 @@ func TestTheAboutTabReportsTheToolCheckResult(t *testing.T) {
 	}
 }
 
-func TestTheAboutTabHoldsTheWizardRerunUntilItExists(t *testing.T) {
-	tt, _ := aboutTab(t, app.Facts{ToolVersion: "0.1.0"})
+func TestTheAboutTabRerunsTheWizard(t *testing.T) {
+	tt, opened := aboutTab(t, app.Facts{ToolVersion: "0.1.0"})
 
 	rerun, found := tt.Access("重新运行向导")
 	if !found {
 		t.Fatal("the wizard rerun is not on the tab")
 	}
-	if !rerun.Disabled {
-		t.Error("the wizard rerun is live before the wizard can be rerun")
+	if rerun.Disabled {
+		t.Error("the wizard rerun is held while nothing blocks it")
+	}
+	if err := tt.Click("重新运行向导"); err != nil {
+		t.Fatalf("click the rerun: %v", err)
+	}
+	if *opened != 1 {
+		t.Errorf("the rerun ran %d times, want once", *opened)
 	}
 	if got := tt.Texts(); !slices.Contains(got, "以当前语言、主题与 Steam 路径为初值重新运行设置向导。") {
 		t.Errorf("texts = %q, want what the rerun starts from", got)
