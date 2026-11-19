@@ -8,6 +8,7 @@ type Process struct {
 type Runtime interface {
 	IsDir(path string) bool
 	IsFile(path string) bool
+	ReadFile(path string) ([]byte, error)
 	IsReadableDir(path string) bool
 	MkdirAll(path string) error
 	WriteFile(path string, data []byte) error
@@ -32,6 +33,7 @@ type Launch struct {
 type Fake struct {
 	Dirs       map[string]bool
 	Files      map[string]bool
+	Contents   map[string][]byte
 	Unreadable map[string]bool
 	Picked     string
 	PickStart  string

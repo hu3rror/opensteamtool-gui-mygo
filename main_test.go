@@ -1283,3 +1283,67 @@ func TestAnUndeletableFileReportsTheRemovalFailure(t *testing.T) {
 		t.Errorf("texts = %q, want the failed removal in the status bar", shown(t, s))
 	}
 }
+
+func steamDaddySource() source.Source {
+	owner, _ := source.BuiltinFor(source.LayoutSteamDaddy)
+	return owner
+}
+
+func steamDaddySteam(t *testing.T, running bool) (*rt.Fake, *session, string) {
+	t.Helper()
+	host, root := steamHost(t, running)
+	host.OnSpawn = func(call rt.Launch) {
+		if slices.Equal(call.Args, []string{"-shutdown"}) {
+			host.Procs = nil
+			return
+		}
+		host.Procs = append(host.Procs, rt.Process{PID: call.PID, Exe: call.Exe})
+	}
+	daddy := steamDaddySource()
+	packageURL := "https://example.test/daddy-release.zip"
+	host.Responses = map[string][]byte{
+		patch.LatestURL(daddy.Repository): releaseBody("v1.2.0", packageURL),
+		packageURL: zipped(t, map[string]string{
+			"SteamDaddy.dll":      "payload",
+			"xinput1_4.dll":       "loader",
+			"version.dll.disable": "entry",
+			"cloud_redirect.dll":  "redirect",
+			"steamdaddy.toml":     "default",
+		}),
+	}
+	s := newSession(host, noSleep, "zh-CN", config.Config{SteamPath: root, Language: app.LanguageAuto, Source: daddy}, true, t.TempDir())
+	runCommand(t, s, s.checkUpdate)
+	runCommand(t, s, s.downloadPatch)
+	return host, s, root
+}
+
+func TestAnEditedConfigIsArchivedOnRemovalAndRestoredOnDeploy(t *testing.T) {
+	host, s, root := steamDaddySteam(t, false)
+	runCommand(t, s, s.applyPatch)
+
+	toml := filepath.Join(root, "steamdaddy.toml")
+	if got := string(host.Contents[toml]); got != "default" {
+		t.Fatalf("the deployed toml holds %q, want the published default", got)
+	}
+	host.Contents[toml] = []byte("edited")
+
+	runCommand(t, s, s.uninstall)
+
+	facts := s.factsWithoutGate()
+	if facts.Result != app.PatchRemoved || facts.Deployment != app.NotApplied {
+		t.Fatalf("facts = %+v, want the patch removed", facts)
+	}
+	archive := filepath.Join(s.dir, "userdata", patch.Slug(source.KeySteamDaddy), "steamdaddy.toml")
+	if got := string(host.Contents[archive]); got != "edited" {
+		t.Fatalf("the archive holds %q, want the edited config", got)
+	}
+	if host.IsFile(toml) {
+		t.Error("the edited config survived the removal")
+	}
+
+	runCommand(t, s, s.applyPatch)
+
+	if got := string(host.Contents[toml]); got != "edited" {
+		t.Errorf("the deploy restored %q, want the edited config", got)
+	}
+}

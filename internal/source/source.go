@@ -164,6 +164,28 @@ func (m Manifest) RootFiles() []string {
 	return names
 }
 
+func (m Manifest) UserOwned() []Member {
+	var owned []Member
+	for _, member := range m.Optional {
+		if member.Keep {
+			owned = append(owned, member)
+		}
+	}
+	return owned
+}
+
+func BuiltinFor(layout Layout) (Source, bool) {
+	var owner Source
+	found := 0
+	for _, builtin := range builtins {
+		if builtin.Layout == layout {
+			owner = builtin
+			found++
+		}
+	}
+	return owner, found == 1
+}
+
 var openSteamToolManifest = Manifest{
 	Payload: Member{Name: "OpenSteamTool.dll", Published: []string{"OpenSteamTool.dll"}},
 	Loader:  Member{Name: "xinput1_4.dll", Published: []string{"xinput1_4.dll"}},

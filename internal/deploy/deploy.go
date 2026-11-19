@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"opensteamtool-gui-mygo/internal/patch"
@@ -9,6 +10,7 @@ import (
 
 type Files interface {
 	IsFile(path string) bool
+	ReadFile(path string) ([]byte, error)
 	MkdirAll(path string) error
 	WriteFile(path string, data []byte) error
 	Rename(from string, to string) error
@@ -16,11 +18,20 @@ type Files interface {
 }
 
 type Plan struct {
-	Root   string
-	Layout source.Layout
-	Entry  source.Entry
-	Files  []patch.File
-	Remove string
+	Root    string
+	ToolDir string
+	Layout  source.Layout
+	Entry   source.Entry
+	Source  source.Source
+	Files   []patch.File
+	Remove  string
+}
+
+type Removal struct {
+	Root    string
+	Layout  source.Layout
+	ToolDir string
+	Source  source.Source
 }
 
 type Conflict struct {
@@ -44,9 +55,14 @@ func Write(host Files, plan Plan) error {
 	return writeAll(host, plan)
 }
 
-func Uninstall(host Files, root string, layout source.Layout) error {
-	for _, name := range layout.Manifest().RootFiles() {
-		target := filepath.Join(root, name)
+func Uninstall(host Files, removal Removal) error {
+	if len(removal.Layout.Manifest().UserOwned()) > 0 {
+		if err := releaseUserFiles(host, removal.Root, removal.Layout, removal.ToolDir, removal.Source); err != nil {
+			return err
+		}
+	}
+	for _, name := range removal.Layout.Manifest().RootFiles() {
+		target := filepath.Join(removal.Root, name)
 		if !host.IsFile(target) {
 			continue
 		}
@@ -87,11 +103,21 @@ func resolveConflict(host Files, plan Plan) error {
 }
 
 func clearOther(host Files, plan Plan) error {
+	other := plan.Layout.Other()
+	if len(other.Manifest().UserOwned()) > 0 {
+		owner, ok := source.BuiltinFor(other)
+		if !ok {
+			return fmt.Errorf("no single built-in source locks the other layout")
+		}
+		if err := releaseUserFiles(host, plan.Root, other, plan.ToolDir, owner); err != nil {
+			return err
+		}
+	}
 	own := map[string]bool{}
 	for _, name := range plan.Layout.Manifest().RootFiles() {
 		own[name] = true
 	}
-	for _, name := range plan.Layout.Other().Manifest().RootFiles() {
+	for _, name := range other.Manifest().RootFiles() {
 		target := filepath.Join(plan.Root, name)
 		if own[name] || !host.IsFile(target) {
 			continue
@@ -103,26 +129,52 @@ func clearOther(host Files, plan Plan) error {
 	return nil
 }
 
-func writeAll(host Files, plan Plan) error {
-	keep := map[string]bool{}
-	for _, member := range plan.Layout.Manifest().Optional {
-		if member.Keep {
-			keep[member.Name] = true
-		}
+func writeAtomic(host Files, target string, data []byte) error {
+	temp := target + ".tmp"
+	if err := host.WriteFile(temp, data); err != nil {
+		return err
 	}
-	for _, file := range plan.Files {
-		target := filepath.Join(plan.Root, file.Name)
-		if keep[file.Name] && host.IsFile(target) {
-			continue
-		}
-		temp := target + ".tmp"
-		if err := host.WriteFile(temp, file.Data); err != nil {
-			return err
-		}
-		if err := host.Rename(temp, target); err != nil {
-			_ = host.Remove(temp)
-			return err
-		}
+	if err := host.Rename(temp, target); err != nil {
+		_ = host.Remove(temp)
+		return err
 	}
 	return nil
+}
+
+func writeAll(host Files, plan Plan) error {
+	owned := map[string]bool{}
+	for _, member := range plan.Layout.Manifest().UserOwned() {
+		owned[member.Name] = true
+	}
+	dir := userDir(plan.ToolDir, plan.Source)
+	record := map[string]string{}
+	if len(owned) > 0 {
+		record = shippedHashesOrNone(host, dir)
+	}
+	recorded := false
+	for _, file := range plan.Files {
+		target := filepath.Join(plan.Root, file.Name)
+		data := file.Data
+		if owned[file.Name] {
+			if host.IsFile(target) {
+				continue
+			}
+			restored, ok, err := readArchive(host, dir, file.Name)
+			if err != nil {
+				return err
+			}
+			if ok {
+				data = restored
+			}
+			record[file.Name] = sha256Hex(file.Data)
+			recorded = true
+		}
+		if err := writeAtomic(host, target, data); err != nil {
+			return err
+		}
+	}
+	if !recorded {
+		return nil
+	}
+	return storeRecord(host, dir, record)
 }

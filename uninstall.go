@@ -91,7 +91,8 @@ func (s *session) runUninstall(run uninstallRun) {
 		}
 		s.advance(app.BusyUninstall)
 	}
-	if err := deploy.Uninstall(s.host, root, source.OrDefault(s.config().Source).Layout); err != nil {
+	src := source.OrDefault(s.config().Source)
+	if err := deploy.Uninstall(s.host, deploy.Removal{Root: root, Layout: src.Layout, ToolDir: s.dir, Source: src}); err != nil {
 		log.Printf("remove the patch: %v", err)
 		s.finishUninstall(app.RemovalFailed)
 		return

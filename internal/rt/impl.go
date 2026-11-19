@@ -23,6 +23,14 @@ func (OS) IsFile(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
+func (OS) ReadFile(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	return data, nil
+}
+
 func (OS) IsReadableDir(path string) bool {
 	dir, err := os.Open(path)
 	if err != nil {
@@ -104,6 +112,17 @@ func (f *Fake) PickDirectory(_ string, start string) (string, error) {
 
 func (f Fake) IsFile(path string) bool { return f.Files[path] }
 
+func (f *Fake) ReadFile(path string) ([]byte, error) {
+	if !f.Files[path] {
+		return nil, fmt.Errorf("read %s: the fake has no such file", path)
+	}
+	data, ok := f.Contents[path]
+	if !ok {
+		return nil, fmt.Errorf("read %s: the fake holds no content for the file", path)
+	}
+	return slices.Clone(data), nil
+}
+
 func (f *Fake) MkdirAll(path string) error {
 	f.Mkdirs = append(f.Mkdirs, path)
 	if f.Dirs == nil {
@@ -119,6 +138,10 @@ func (f *Fake) WriteFile(path string, data []byte) error {
 		f.Files = map[string]bool{}
 	}
 	f.Files[path] = true
+	if f.Contents == nil {
+		f.Contents = map[string][]byte{}
+	}
+	f.Contents[path] = slices.Clone(data)
 	return nil
 }
 
@@ -129,12 +152,17 @@ func (f *Fake) Rename(from string, to string) error {
 		f.Files = map[string]bool{}
 	}
 	f.Files[to] = true
+	if data, ok := f.Contents[from]; ok {
+		f.Contents[to] = data
+		delete(f.Contents, from)
+	}
 	return nil
 }
 
 func (f *Fake) Remove(path string) error {
 	f.Removes = append(f.Removes, path)
 	delete(f.Files, path)
+	delete(f.Contents, path)
 	return nil
 }
 

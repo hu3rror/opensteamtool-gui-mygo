@@ -57,7 +57,7 @@ func (s *session) runApply(remove string) {
 		s.failApply(app.CloseSteamFailed, "")
 		return
 	}
-	plan := deploy.Plan{Root: root, Layout: src.Layout, Entry: entry, Files: files, Remove: remove}
+	plan := deploy.Plan{Root: root, ToolDir: s.dir, Layout: src.Layout, Entry: entry, Source: src, Files: files, Remove: remove}
 	err = deploy.Write(s.host, plan)
 	if err != nil {
 		log.Printf("deploy the patch: %v", err)

@@ -21,10 +21,10 @@ type State struct {
 }
 
 func Dir(toolDir string, src source.Source) string {
-	return filepath.Join(toolDir, "patches", slug(src.Key))
+	return filepath.Join(toolDir, "patches", Slug(src.Key))
 }
 
-func slug(key string) string {
+func Slug(key string) string {
 	trimmed := strings.TrimPrefix(strings.TrimPrefix(key, "https://"), "github.com/")
 	clean := strings.Map(func(r rune) rune {
 		switch {

@@ -331,3 +331,28 @@ func TestADraftCollapsesToTheBuiltinItNames(t *testing.T) {
 		t.Errorf("the SteamDaddy draft reports layout %v", got)
 	}
 }
+
+func TestUserOwnedTakesOnlyTheKeptOptionalMember(t *testing.T) {
+	if owned := source.LayoutOpenSteamTool.Manifest().UserOwned(); len(owned) != 0 {
+		t.Errorf("the OpenSteamTool layout owns %v", owned)
+	}
+	owned := source.LayoutSteamDaddy.Manifest().UserOwned()
+	if len(owned) != 1 || owned[0].Name != "steamdaddy.toml" {
+		t.Errorf("the SteamDaddy layout owns %v, want only steamdaddy.toml", owned)
+	}
+}
+
+func TestEveryUserOwnedMemberHasOneBuiltinSource(t *testing.T) {
+	for _, layout := range []source.Layout{source.LayoutOpenSteamTool, source.LayoutSteamDaddy} {
+		if len(layout.Manifest().UserOwned()) == 0 {
+			continue
+		}
+		owner, ok := source.BuiltinFor(layout)
+		if !ok || owner.Key != source.KeySteamDaddy {
+			t.Errorf("layout %v is locked by %q, want exactly the SteamDaddy source", layout, owner.Key)
+		}
+	}
+	if _, ok := source.BuiltinFor(source.LayoutOpenSteamTool); ok {
+		t.Error("the OpenSteamTool layout reports a single owner")
+	}
+}

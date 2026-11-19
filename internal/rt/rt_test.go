@@ -229,11 +229,17 @@ func TestOSMakesWritesRenamesAndRemovesFiles(t *testing.T) {
 	if osRuntime.IsFile(temp) || !osRuntime.IsFile(file) {
 		t.Errorf("the rename left %q and %q", temp, file)
 	}
+	if data, err := osRuntime.ReadFile(file); err != nil || string(data) != "entry" {
+		t.Errorf("ReadFile: %q, %v", data, err)
+	}
 	if err := osRuntime.Remove(file); err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
 	if osRuntime.IsFile(file) {
 		t.Errorf("%q survived the removal", file)
+	}
+	if _, err := osRuntime.ReadFile(file); err == nil {
+		t.Error("a removed file read back without an error")
 	}
 }
 
@@ -248,6 +254,16 @@ func TestTheFakeRecordsItsFileChanges(t *testing.T) {
 	}
 	if !fake.IsFile(file) || fake.IsFile(file+".tmp") {
 		t.Errorf("the rename left %v", fake.Files)
+	}
+	if data, err := fake.ReadFile(file); err != nil || string(data) != "entry" {
+		t.Errorf("ReadFile: %q, %v", data, err)
+	}
+	if _, err := fake.ReadFile(`C:\Steam\missing.dll`); err == nil {
+		t.Error("a missing file read back without an error")
+	}
+	fake.Files[`C:\Steam\opaque.dll`] = true
+	if _, err := fake.ReadFile(`C:\Steam\opaque.dll`); err == nil {
+		t.Error("a file without content read back without an error")
 	}
 	if len(fake.Writes) != 1 || fake.Writes[0].Path != file+".tmp" || string(fake.Writes[0].Data) != "entry" {
 		t.Errorf("wrote %+v", fake.Writes)
