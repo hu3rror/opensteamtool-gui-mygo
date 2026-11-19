@@ -25,6 +25,11 @@ const (
 	steamRunning             key = "Steam 正在运行"
 	steamStopped             key = "Steam 未运行"
 	restartSteam             key = "重启 Steam"
+	showWindow               key = "显示"
+	exitApp                  key = "退出"
+	openLuaFolder            key = "打开 Lua 目录"
+	trayRunning              key = "仍在托盘运行，点击图标可显示窗口"
+	quitQuestion             key = "确定退出？进行中的操作会中止。"
 	applyAndStart            key = "应用补丁并启动 Steam"
 	removeAndDeploy          key = "移除并部署"
 	uninstall                key = "卸载补丁"
@@ -112,6 +117,11 @@ var copyTable = map[key]string{
 	steamRunning:             "Steam is running",
 	steamStopped:             "Steam is not running",
 	restartSteam:             "Restart Steam",
+	showWindow:               "Show",
+	exitApp:                  "Exit",
+	openLuaFolder:            "Open Lua folder",
+	trayRunning:              "Still running in the tray. Click the icon to show the window.",
+	quitQuestion:             "Quit? Running operations will be aborted.",
 	steamStarted:             "Steam started",
 	steamRestarted:           "Steam restarted",
 	patchApplied:             "Patch applied",
@@ -284,3 +294,8 @@ func Title(l app.Lang) string { return text(l, windowTitle) }
 
 func RestartSteam(l app.Lang) string   { return text(l, restartSteam) }
 func SteamDirectory(l app.Lang) string { return text(l, steamDialogTitle) }
+
+func Show(l app.Lang) string          { return text(l, showWindow) }
+func Exit(l app.Lang) string          { return text(l, exitApp) }
+func OpenLuaFolder(l app.Lang) string { return text(l, openLuaFolder) }
+func TrayRunning(l app.Lang) string   { return text(l, trayRunning) }

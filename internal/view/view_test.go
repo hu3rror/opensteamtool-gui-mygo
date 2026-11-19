@@ -240,12 +240,49 @@ func TestTheStateWordIsReadAsStatusText(t *testing.T) {
 	}
 }
 
-func TestTheTrayItemSpeaksBothLanguages(t *testing.T) {
-	if got := view.RestartSteam(app.Chinese); got != "重启 Steam" {
-		t.Errorf("the Chinese tray item is %q", got)
+func TestTheTrayMenuSpeaksBothLanguages(t *testing.T) {
+	pairs := []struct {
+		name    string
+		copy    func(app.Lang) string
+		chinese string
+		english string
+	}{
+		{name: "restart Steam", copy: view.RestartSteam, chinese: "重启 Steam", english: "Restart Steam"},
+		{name: "show", copy: view.Show, chinese: "显示", english: "Show"},
+		{name: "exit", copy: view.Exit, chinese: "退出", english: "Exit"},
+		{name: "open the Lua folder", copy: view.OpenLuaFolder, chinese: "打开 Lua 目录", english: "Open Lua folder"},
+		{name: "the balloon", copy: view.TrayRunning, chinese: "仍在托盘运行，点击图标可显示窗口", english: "Still running in the tray. Click the icon to show the window."},
 	}
-	if got := view.RestartSteam(app.English); got != "Restart Steam" {
-		t.Errorf("the English tray item is %q", got)
+	for _, pair := range pairs {
+		t.Run(pair.name, func(t *testing.T) {
+			if got := pair.copy(app.Chinese); got != pair.chinese {
+				t.Errorf("the Chinese copy is %q, want %q", got, pair.chinese)
+			}
+			if got := pair.copy(app.English); got != pair.english {
+				t.Errorf("the English copy is %q, want %q", got, pair.english)
+			}
+		})
+	}
+}
+
+func TestTheExitConfirmationAsksBeforeEndingTheProcess(t *testing.T) {
+	s := &screen{facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, Deployment: app.Applied, SteamRunning: true, Pending: app.ConfirmExit}}
+	var answered []string
+	s.actions = view.Actions{
+		Confirm: func() { answered = append(answered, "yes") },
+		Cancel:  func() { answered = append(answered, "no") },
+	}
+	tt := ui.NewTester(s.view, 480, 360)
+	for _, label := range []string{"确认", "确定退出？进行中的操作会中止。", "是", "否"} {
+		if !tt.HasText(label) {
+			t.Errorf("texts %q, want %q in the dialog", tt.Texts(), label)
+		}
+	}
+	if err := tt.Click("是"); err != nil {
+		t.Fatalf("click yes: %v", err)
+	}
+	if !slices.Equal(answered, []string{"yes"}) {
+		t.Errorf("answered %v, want the yes", answered)
 	}
 }
 

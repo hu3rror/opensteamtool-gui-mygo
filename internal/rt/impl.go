@@ -101,6 +101,13 @@ func (OS) PickDirectory(title string, start string) (string, error) {
 	return paths[0], nil
 }
 
+func (OS) OpenPath(path string) error {
+	if err := mygo.Shell.OpenPath(path); err != nil {
+		return fmt.Errorf("open %s: %w", path, err)
+	}
+	return nil
+}
+
 func (f Fake) IsDir(path string) bool { return f.Dirs[path] }
 
 func (f Fake) IsReadableDir(path string) bool { return f.Dirs[path] && !f.Unreadable[path] }
@@ -108,6 +115,10 @@ func (f Fake) IsReadableDir(path string) bool { return f.Dirs[path] && !f.Unread
 func (f *Fake) PickDirectory(_ string, start string) (string, error) {
 	f.PickStart = start
 	return f.Picked, nil
+}
+func (f *Fake) OpenPath(path string) error {
+	f.Opens = append(f.Opens, path)
+	return f.OpenError
 }
 
 func (f Fake) IsFile(path string) bool { return f.Files[path] }

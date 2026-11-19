@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -17,6 +18,7 @@ import (
 type session struct {
 	host    rt.Runtime
 	client  *steam.Client
+	sleep   func(time.Duration)
 	persist func(config.Config) error
 	onUI    func(func())
 	dir     string
@@ -32,17 +34,38 @@ type session struct {
 
 	frame   func()
 	retitle func(string)
+	retray  func()
+
+	visible func() bool
 	hide    func()
+	show    func()
+	notify  func(string)
+	quit    func()
+	now     func() time.Time
+
+	tray      bool
+	quitting  bool
+	ballooned bool
+	painted   time.Time
+	steps     atomic.Int32
 }
 
 func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg config.Config, readable bool, dir string) *session {
 	s := &session{
-		host:   host,
-		client: steam.New(host, sleep),
-		cfg:    cfg,
-		dir:    dir,
-		frame:  func() {},
-		onUI:   func(fn func()) { fn() },
+		host:    host,
+		client:  steam.New(host, sleep),
+		sleep:   sleep,
+		cfg:     cfg,
+		dir:     dir,
+		frame:   func() {},
+		onUI:    func(fn func()) { fn() },
+		visible: func() bool { return true },
+		hide:    func() {},
+		show:    func() {},
+		notify:  func(string) {},
+		quit:    func() {},
+		retray:  func() {},
+		now:     time.Now,
 	}
 	s.facts = factsFor(cfg.Language, locale, cfg, host, s.dir)
 	s.facts.NeedsSetup = !readable
@@ -153,6 +176,7 @@ func (s *session) done(result app.Result) {
 }
 
 func (s *session) draw() {
+	s.painted = s.now()
 	if s.frame != nil {
 		s.frame()
 	}

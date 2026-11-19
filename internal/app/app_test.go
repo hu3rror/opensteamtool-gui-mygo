@@ -182,8 +182,10 @@ func TestTheSecondaryRowFollowsTheDeploymentAndSteam(t *testing.T) {
 }
 
 func TestAPendingConfirmationReachesTheScreen(t *testing.T) {
-	if view := app.Derive(app.Facts{Pending: app.ConfirmExitRemove}); view.Pending != app.ConfirmExitRemove {
-		t.Errorf("the screen carries %v, want the pending question", view.Pending)
+	for _, pending := range []app.Confirmation{app.ConfirmExitRemove, app.ConfirmRemoveAndRestart, app.ConfirmExit} {
+		if view := app.Derive(app.Facts{Pending: pending}); view.Pending != pending {
+			t.Errorf("the screen carries %v, want %v", view.Pending, pending)
+		}
 	}
 	if blank := app.Derive(app.Facts{}); blank.Pending != app.NoConfirmation {
 		t.Errorf("a screen without a question carries %v", blank.Pending)

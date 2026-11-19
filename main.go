@@ -36,6 +36,9 @@ func toolDir() string {
 }
 
 func main() {
+	if !mygo.App.RequestSingleInstanceLock() {
+		return
+	}
 	dir := toolDir()
 	cfg, readable, err := config.Load(dir, rt.OS{})
 	if err != nil {
@@ -57,25 +60,53 @@ func main() {
 		s.frame = win.Invalidate
 		s.onUI = win.Update
 		s.retitle = win.SetTitle
-		s.hide = func() {
-			if win.IsVisible() {
-				win.Hide()
+		s.visible = func() bool { return win.IsVisible() && !win.IsMinimized() }
+		s.hide = win.Hide
+		s.show = func() {
+			win.Restore()
+			win.Show()
+			win.Focus()
+		}
+		s.quit = mygo.App.Quit
+		win.OnClose(func(e *mygo.CloseEvent) {
+			if !s.closeWindow() {
+				e.PreventDefault()
+			}
+		})
+		mygo.App.OnSecondInstance(func([]string, string) { s.wake() })
+		s.notify = func(body string) {
+			if err := mygo.NewNotification(mygo.NotificationOptions{Title: view.Title(s.resolvedLanguage()), Body: body}).Show(); err != nil {
+				log.Printf("show the tray balloon: %v", err)
 			}
 		}
-		lang := s.resolvedLanguage()
-		if _, err := mygo.NewTray(mygo.TrayOptions{
+		tray, err := mygo.NewTray(mygo.TrayOptions{
 			Icon:    trayIcon,
-			ToolTip: view.Title(lang),
-			Menu: mygo.NewMenu([]*mygo.MenuItem{{
-				Label: view.RestartSteam(lang),
-				Click: func(*mygo.MenuItem, *mygo.Window) { go s.restartSteam() },
-			}}),
-		}); err != nil {
+			ToolTip: view.Title(s.resolvedLanguage()),
+			Menu:    trayMenu(s),
+		})
+		if err != nil {
 			log.Printf("no tray icon: %v", err)
+		} else {
+			s.tray = true
+			tray.OnClick(func() { s.toggle() })
+			s.retray = func() {
+				tray.SetToolTip(view.Title(s.resolvedLanguage()))
+				tray.SetMenu(trayMenu(s))
+			}
 		}
 		go s.watch(steam.PollInterval)
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func trayMenu(s *session) *mygo.Menu {
+	lang := s.resolvedLanguage()
+	return mygo.NewMenu([]*mygo.MenuItem{
+		{Label: view.Show(lang), Click: func(*mygo.MenuItem, *mygo.Window) { s.wake() }},
+		{Label: view.RestartSteam(lang), Click: func(*mygo.MenuItem, *mygo.Window) { go s.restartSteam() }},
+		{Label: view.OpenLuaFolder(lang), Disabled: !s.factsWithoutGate().SteamPathValid, Click: func(*mygo.MenuItem, *mygo.Window) { go s.openLuaFolder() }},
+		{Label: view.Exit(lang), Click: func(*mygo.MenuItem, *mygo.Window) { s.requestExit() }},
+	})
 }

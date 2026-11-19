@@ -149,6 +149,7 @@ func runSecondary(a Actions, action app.SecondaryAction) {
 var pendingQuestions = map[app.Confirmation]key{
 	app.ConfirmExitRemove:       runningQuestion,
 	app.ConfirmRemoveAndRestart: runningQuestion,
+	app.ConfirmExit:             quitQuestion,
 }
 
 func confirm(c *ui.Context, v app.View, a Actions) {

@@ -77,6 +77,7 @@ const (
 	NoConfirmation Confirmation = iota
 	ConfirmExitRemove
 	ConfirmRemoveAndRestart
+	ConfirmExit
 )
 
 type SecondaryAction int

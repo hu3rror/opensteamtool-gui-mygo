@@ -284,3 +284,20 @@ func TestTheFakeRecordsItsFileChanges(t *testing.T) {
 		t.Errorf("mkdirs %v", fake.Mkdirs)
 	}
 }
+
+func TestTheFakeReportsEveryOpenedPath(t *testing.T) {
+	fake := &rt.Fake{}
+	if err := fake.OpenPath(`C:\Steam\config\lua`); err != nil {
+		t.Fatalf("OpenPath: %v", err)
+	}
+	if !slices.Equal(fake.Opens, []string{`C:\Steam\config\lua`}) {
+		t.Errorf("opened %v", fake.Opens)
+	}
+	fake.OpenError = errors.New("no handler")
+	if err := fake.OpenPath(`C:\Steam\config\lua`); !errors.Is(err, fake.OpenError) {
+		t.Errorf("the failure came back as %v", err)
+	}
+	if len(fake.Opens) != 2 {
+		t.Errorf("recorded %v, want both attempts", fake.Opens)
+	}
+}

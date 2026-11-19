@@ -58,7 +58,7 @@ func (s *session) runApply(remove string) {
 		return
 	}
 	plan := deploy.Plan{Root: root, ToolDir: s.dir, Layout: src.Layout, Entry: entry, Source: src, Files: files, Remove: remove}
-	err = deploy.Write(s.host, plan)
+	err = deploy.Write(s.files(), plan)
 	if err != nil {
 		log.Printf("deploy the patch: %v", err)
 		var conflict deploy.Conflict
@@ -88,8 +88,8 @@ func (s *session) recordApply(src source.Source, build string) {
 			cfg.Snapshot = config.DeploymentSnapshot{Source: src.Key, Layout: src.Layout, ClientBuild: build, PatchVersion: version}
 		})
 		s.done(app.PatchApplied)
-		if s.hide != nil && s.factsWithoutGate().SteamRunning {
-			s.hide()
+		if s.factsWithoutGate().SteamRunning {
+			s.hideToTray()
 		}
 	})
 }

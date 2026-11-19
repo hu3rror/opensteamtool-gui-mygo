@@ -119,9 +119,7 @@ func (s *session) watch(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for range ticker.C {
-		if s.refresh() {
-			s.draw()
-		}
+		s.poll()
 	}
 }
 
@@ -148,6 +146,7 @@ func (s *session) writeConfig(change func(*config.Config)) {
 	s.mu.Unlock()
 	s.save(cfg)
 	s.draw()
+	s.retray()
 }
 
 func (s *session) applySource(draft source.Draft) (source.Source, bool) {

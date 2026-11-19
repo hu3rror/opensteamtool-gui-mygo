@@ -64,6 +64,8 @@ func (s *session) confirmPending() {
 		s.beginUninstall(uninstallRun{stop: true})
 	case app.ConfirmRemoveAndRestart:
 		s.beginUninstall(uninstallRun{stop: true, restart: true})
+	case app.ConfirmExit:
+		s.exit()
 	}
 }
 
@@ -92,7 +94,7 @@ func (s *session) runUninstall(run uninstallRun) {
 		s.advance(app.BusyUninstall)
 	}
 	src := source.OrDefault(s.config().Source)
-	if err := deploy.Uninstall(s.host, deploy.Removal{Root: root, Layout: src.Layout, ToolDir: s.dir, Source: src}); err != nil {
+	if err := deploy.Uninstall(s.files(), deploy.Removal{Root: root, Layout: src.Layout, ToolDir: s.dir, Source: src}); err != nil {
 		log.Printf("remove the patch: %v", err)
 		s.finishUninstall(app.RemovalFailed)
 		return
