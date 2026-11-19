@@ -81,48 +81,74 @@ func Main(c *ui.Context, v app.View, st *State, a Actions) {
 
 func wizard(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
-	ui.Row(c).Fill().Gap(t.Space(4)).Children(func() {
+	ui.Row(c).Gap(t.Space(4)).Children(func() {
 		ui.Text(c, text(v.Lang, wizardTitle)).Role(ui.RoleStatus).FontSize(t.FontSize * 1.5)
 		ui.Spacer(c)
 		ui.Text(c, WizardStepLabel(v.Lang, v.Wizard.Step)).TextColor(t.TextMuted)
 	})
-	ui.Column(c).Grow(1).Gap(t.Space(2)).Children(func() {
-		switch v.Wizard.Step {
-		case app.WizardLanguage:
-			ui.Text(c, text(v.Lang, wizardLanguagePrompt))
-			choice := ui.Segmented(c, &st.WizardLanguage,
-				text(v.Lang, followSystem),
-				text(v.Lang, languageChinese),
-				text(v.Lang, languageEnglish),
-			)
-			if choice.Changed() {
-				a.WizardLanguage(app.Language(st.WizardLanguage))
+	ui.Scroll(c).Grow(1).Children(func() {
+		ui.Column(c).Gap(t.Space(2)).Children(func() {
+			switch v.Wizard.Step {
+			case app.WizardLanguage:
+				ui.Text(c, text(v.Lang, wizardLanguagePrompt))
+				choice := ui.Segmented(c, &st.WizardLanguage,
+					text(v.Lang, followSystem),
+					text(v.Lang, languageChinese),
+					text(v.Lang, languageEnglish),
+				)
+				if choice.Changed() {
+					a.WizardLanguage(app.Language(st.WizardLanguage))
+				}
+			case app.WizardTheme:
+				ui.Text(c, text(v.Lang, wizardThemePrompt))
+				choice := ui.Segmented(c, &st.WizardTheme,
+					text(v.Lang, followSystem),
+					text(v.Lang, themeDark),
+					text(v.Lang, themeLight),
+				)
+				if choice.Changed() {
+					a.WizardTheme(app.Theme(st.WizardTheme))
+				}
+			case app.WizardPath:
+				wizardPath(c, v, st, a)
+			case app.WizardDownload:
+				downloadShape(c, v)
 			}
-		case app.WizardTheme:
-			ui.Text(c, text(v.Lang, wizardThemePrompt))
-			choice := ui.Segmented(c, &st.WizardTheme,
-				text(v.Lang, followSystem),
-				text(v.Lang, themeDark),
-				text(v.Lang, themeLight),
-			)
-			if choice.Changed() {
-				a.WizardTheme(app.Theme(st.WizardTheme))
-			}
-		case app.WizardPath:
-			wizardPath(c, v, st, a)
-		case app.WizardDownload:
-			downloadShape(c, v)
-		}
+		})
 	})
-	if v.Wizard.Step == app.WizardDownload {
-		downloadActions(c, v, a)
-		return
-	}
+	wizardFooter(c, v, a)
+}
+
+func wizardFooter(c *ui.Context, v app.View, a Actions) {
+	t := c.Theme()
 	ui.Row(c).Gap(t.Space(2)).Children(func() {
 		wizardBack(c, v, a)
+		if v.Wizard.Step == app.WizardDownload && v.Wizard.Download != app.WizardDownloaded {
+			if ui.Button(c, text(v.Lang, wizardSkip)).Clicked() {
+				a.WizardSkip()
+			}
+		}
 		ui.Spacer(c)
-		if ui.Button(c, text(v.Lang, nextStep)).Disabled(v.Wizard.NextDisabled).Clicked() {
-			a.WizardNext()
+		switch v.Wizard.Step {
+		case app.WizardDownload:
+			switch v.Wizard.Download {
+			case app.WizardNotDownloaded:
+				if ui.Button(c, text(v.Lang, wizardDownload)).Clicked() {
+					a.WizardDownload()
+				}
+			case app.WizardDownloaded:
+				if ui.Button(c, text(v.Lang, wizardFinish)).Clicked() {
+					a.WizardFinish()
+				}
+			case app.WizardDownloadFailed:
+				if ui.Button(c, text(v.Lang, wizardRetry)).Clicked() {
+					a.WizardDownload()
+				}
+			}
+		default:
+			if ui.Button(c, text(v.Lang, nextStep)).Disabled(v.Wizard.NextDisabled).Clicked() {
+				a.WizardNext()
+			}
 		}
 	})
 }
@@ -189,34 +215,6 @@ func downloadShape(c *ui.Context, v app.View) {
 	case app.WizardDownloadFailed:
 		ui.Text(c, WizardDownloadFailure(v.Lang, w.Failure)).Role(ui.RoleStatus).TextColor(t.Warning)
 	}
-}
-
-func downloadActions(c *ui.Context, v app.View, a Actions) {
-	t := c.Theme()
-	w := v.Wizard
-	ui.Row(c).Gap(t.Space(2)).Children(func() {
-		wizardBack(c, v, a)
-		if w.Download != app.WizardDownloaded {
-			if ui.Button(c, text(v.Lang, wizardSkip)).Clicked() {
-				a.WizardSkip()
-			}
-		}
-		ui.Spacer(c)
-		switch w.Download {
-		case app.WizardNotDownloaded:
-			if ui.Button(c, text(v.Lang, wizardDownload)).Clicked() {
-				a.WizardDownload()
-			}
-		case app.WizardDownloaded:
-			if ui.Button(c, text(v.Lang, wizardFinish)).Clicked() {
-				a.WizardFinish()
-			}
-		case app.WizardDownloadFailed:
-			if ui.Button(c, text(v.Lang, wizardRetry)).Clicked() {
-				a.WizardDownload()
-			}
-		}
-	})
 }
 
 func mainScreen(c *ui.Context, v app.View, st *State, a Actions) {
