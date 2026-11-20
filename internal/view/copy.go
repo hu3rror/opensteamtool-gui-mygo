@@ -135,8 +135,13 @@ const (
 	addressError             key = "地址无效：需要 github.com 仓库地址"
 	wizardTitle              key = "首次运行向导"
 	wizardStep               key = "第 %s / 4 步"
-	wizardLanguagePrompt     key = "请选择界面语言："
-	wizardThemePrompt        key = "请选择界面主题："
+	wizardStepLanguage       key = "界面语言"
+	wizardStepPath           key = "Steam 路径"
+	wizardStepDownload       key = "下载补丁"
+	wizardHintLanguage       key = "影响窗口、对话框和托盘菜单里的全部文字。"
+	wizardHintTheme          key = "影响整个窗口的配色。"
+	wizardHintPath           key = "补丁会部署到这个 Steam 安装目录。"
+	wizardHintDownload       key = "获取与当前版本匹配的补丁文件。"
 	wizardPathPrompt         key = "请确认 Steam 安装路径："
 	wizardPathError          key = "路径无效：请选择有效的 Steam 安装目录"
 	nextStep                 key = "下一步"
@@ -276,8 +281,13 @@ var copyTable = map[key]string{
 	addressError:             "Invalid address: a github.com repository address is required",
 	wizardTitle:              "First-run wizard",
 	wizardStep:               "Step %s of 4",
-	wizardLanguagePrompt:     "Choose the interface language:",
-	wizardThemePrompt:        "Choose the interface theme:",
+	wizardStepLanguage:       "Interface language",
+	wizardStepPath:           "Steam path",
+	wizardStepDownload:       "Download the patch",
+	wizardHintLanguage:       "Changes every word in the window, the dialogs and the tray menu.",
+	wizardHintTheme:          "Changes the colors of the whole window.",
+	wizardHintPath:           "The patch is deployed into this Steam installation folder.",
+	wizardHintDownload:       "Fetches the patch that matches this version.",
 	wizardPathPrompt:         "Confirm the Steam installation path:",
 	wizardPathError:          "Invalid path: choose a valid Steam installation folder",
 	nextStep:                 "Next",
@@ -290,6 +300,20 @@ var copyTable = map[key]string{
 	wizardRetry:              "Retry",
 	wizardFinish:             "Finish",
 	wizardSkip:               "Skip",
+}
+
+var wizardStepNames = map[app.WizardStep]key{
+	app.WizardLanguage: wizardStepLanguage,
+	app.WizardTheme:    themeRow,
+	app.WizardPath:     wizardStepPath,
+	app.WizardDownload: wizardStepDownload,
+}
+
+var wizardStepHints = map[app.WizardStep]key{
+	app.WizardLanguage: wizardHintLanguage,
+	app.WizardTheme:    wizardHintTheme,
+	app.WizardPath:     wizardHintPath,
+	app.WizardDownload: wizardHintDownload,
 }
 
 var mainStateKeys = map[app.MainState]key{

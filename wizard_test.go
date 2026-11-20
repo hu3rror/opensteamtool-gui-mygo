@@ -27,7 +27,7 @@ func TestTheRerunStartsFromTheSavedValues(t *testing.T) {
 
 	s.actions.WizardRerun()
 	texts := shown(t, s)
-	if !slices.Contains(texts, "Choose the interface language:") || !slices.Contains(texts, "Step 1 of 4") {
+	if !slices.Contains(texts, "Changes every word in the window, the dialogs and the tray menu.") || !slices.Contains(texts, "Step 1 of 4") {
 		t.Fatalf("texts = %q, want the wizard on the language step", texts)
 	}
 	if s.uiState.WizardLanguage != int(app.LanguageEnglish) || s.uiState.WizardTheme != int(app.ThemeDark) {
@@ -124,7 +124,7 @@ func TestAChoiceAppliesAtOnceAndIsSavedOnlyAtTheEnd(t *testing.T) {
 	}
 
 	s.actions.WizardLanguage(app.LanguageEnglish)
-	if !slices.Contains(shown(t, s), "Choose the interface language:") {
+	if !slices.Contains(shown(t, s), "Changes every word in the window, the dialogs and the tray menu.") {
 		t.Fatalf("texts = %q, the language did not apply at once", shown(t, s))
 	}
 	if s.factsWithoutGate().Wizard.Step != app.WizardLanguage {

@@ -29,9 +29,9 @@ func TestTheWizardReplacesTheMainScreenWithItsStep(t *testing.T) {
 		step app.WizardStep
 		text string
 	}{
-		{app.WizardLanguage, "请选择界面语言："},
-		{app.WizardTheme, "请选择界面主题："},
-		{app.WizardPath, "请确认 Steam 安装路径："},
+		{app.WizardLanguage, "界面语言"},
+		{app.WizardTheme, "主题"},
+		{app.WizardPath, "Steam 路径"},
 		{app.WizardDownload, "第 4 / 4 步"},
 	} {
 		facts := openWizard(app.Facts{SteamPathValid: true, PatchDownloaded: true})
@@ -43,8 +43,63 @@ func TestTheWizardReplacesTheMainScreenWithItsStep(t *testing.T) {
 		if !tt.HasText(step.text) {
 			t.Fatalf("step %v: texts %q, want %q", step.step, tt.Texts(), step.text)
 		}
-		if tt.HasText("未应用") || tt.HasText("已应用") {
+		if tt.HasText("检查补丁更新") || tt.HasText("Steam 未运行") {
 			t.Errorf("step %v: texts %q, the main screen shows behind the wizard", step.step, tt.Texts())
+		}
+	}
+}
+
+func TestEveryWizardStepNamesItselfAndSaysWhatItChanges(t *testing.T) {
+	tests := []struct {
+		step app.WizardStep
+		name string
+		hint string
+	}{
+		{app.WizardLanguage, "界面语言", "影响窗口、对话框和托盘菜单里的全部文字。"},
+		{app.WizardTheme, "主题", "影响整个窗口的配色。"},
+		{app.WizardPath, "Steam 路径", "补丁会部署到这个 Steam 安装目录。"},
+		{app.WizardDownload, "下载补丁", "获取与当前版本匹配的补丁文件。"},
+	}
+	for _, test := range tests {
+		facts := openWizard(app.Facts{SteamPathValid: true, PatchDownloaded: true})
+		facts.Wizard.Step = test.step
+		_, tt := wizardScreen(t, facts, view.Actions{})
+		if !tt.HasText(test.name) {
+			t.Errorf("step %v: texts %q, want the step name %q", test.step, tt.Texts(), test.name)
+		}
+		if !tt.HasText(test.hint) {
+			t.Errorf("step %v: texts %q, want the hint %q", test.step, tt.Texts(), test.hint)
+		}
+	}
+}
+
+func TestTheLanguageStepPreviewsTheChosenLanguage(t *testing.T) {
+	for _, test := range []struct {
+		locale string
+		want   string
+		absent string
+	}{
+		{"zh-CN", "应用补丁并启动 Steam", "Apply patch and start Steam"},
+		{"en-US", "Apply patch and start Steam", "应用补丁并启动 Steam"},
+	} {
+		facts := openWizard(app.Facts{Locale: test.locale})
+		_, tt := wizardScreen(t, facts, view.Actions{})
+		if sample, found := tt.Find(test.want); !found || sample.W == 0 {
+			t.Errorf("%s: sample %+v found %v, texts %q, want the sample %q on screen", test.locale, sample, found, tt.Texts(), test.want)
+		}
+		if tt.HasText(test.absent) {
+			t.Errorf("%s: texts %q, the sample stays in the other language", test.locale, tt.Texts())
+		}
+	}
+}
+
+func TestTheThemeStepShowsBothAppearances(t *testing.T) {
+	facts := openWizard(app.Facts{})
+	facts.Wizard.Step = app.WizardTheme
+	_, tt := wizardScreen(t, facts, view.Actions{})
+	for _, want := range []string{"浅色", "深色"} {
+		if card, found := tt.Find(want); !found || card.W == 0 {
+			t.Errorf("card %+v found %v, texts %q, want the %s appearance on screen", card, found, tt.Texts(), want)
 		}
 	}
 }
@@ -317,6 +372,27 @@ func TestThePathStepScrollsToItsSourceChoices(t *testing.T) {
 	last, found = tt.Find("OpenSteamTool 布局")
 	if !found || last.W == 0 {
 		t.Fatalf("the layout conclusion at %+v stays hidden after scrolling", last)
+	}
+}
+
+func TestTheLanguageSampleStaysReachableAtTheSmallestWindow(t *testing.T) {
+	facts := openWizard(app.Facts{Locale: "zh-CN"})
+	s := &screen{facts: facts}
+	tt := ui.NewTester(s.view, 320, 280)
+
+	sample, found := tt.Find("应用补丁并启动 Steam")
+	if !found {
+		t.Fatalf("texts %q, want the language sample", tt.Texts())
+	}
+	if sample.W != 0 {
+		t.Fatalf("the sample at %+v already fits, nothing to scroll", sample)
+	}
+
+	tt.Move(160, 140)
+	tt.Scroll(160, 140, 0, 200)
+	sample, found = tt.Find("应用补丁并启动 Steam")
+	if !found || sample.W == 0 {
+		t.Fatalf("the sample at %+v stays hidden after scrolling", sample)
 	}
 }
 
