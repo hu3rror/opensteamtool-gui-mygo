@@ -73,6 +73,9 @@ func (s *session) openWizard() {
 	s.uiState.PathNotFound = path == ""
 	s.uiState.PathFocused = false
 	s.syncSource()
+	if path != "" && path != facts.SteamPath {
+		s.commitSteamPath(path)
+	}
 	if s.frame != nil {
 		s.draw()
 	}
