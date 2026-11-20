@@ -34,6 +34,14 @@ func newTestSession(t *testing.T, host rt.Runtime, root string) *session {
 	return s
 }
 
+func TestTheSessionCarriesTheWindowWidthIntoTheView(t *testing.T) {
+	s := newSession(&rt.Fake{}, noSleep, "zh-CN", config.Config{}, false, t.TempDir())
+	s.windowWidth = func() float32 { return 380 }
+	if got := s.snapshot().WindowWidth; got != 380 {
+		t.Fatalf("window width = %v, want 380", got)
+	}
+}
+
 func TestWindowShowsTheDerivedScreenAndFollowsTheLanguage(t *testing.T) {
 	s := &session{facts: app.Facts{Language: app.LanguageChinese, Locale: "zh-CN"}}
 

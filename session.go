@@ -37,9 +37,10 @@ type session struct {
 	compat      *compat.Round
 	compatStamp string
 
-	frame   func()
-	retitle func(string)
-	retray  func()
+	frame       func()
+	windowWidth func() float32
+	retitle     func(string)
+	retray      func()
 
 	visible func() bool
 	hide    func()
@@ -141,6 +142,9 @@ func (s *session) syncSettings(facts app.Facts) {
 func (s *session) snapshot() app.Facts {
 	facts := s.factsWithoutGate()
 	facts.Busy = s.gate.Busy()
+	if s.windowWidth != nil {
+		facts.WindowWidth = s.windowWidth()
+	}
 	return facts
 }
 

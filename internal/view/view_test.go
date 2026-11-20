@@ -307,6 +307,44 @@ func dialog(t *testing.T) (*screen, *ui.Tester) {
 	return s, tt
 }
 
+func TestTheSettingsTabsBecomeOneDropdownWhenTheWindowIsNarrow(t *testing.T) {
+	wide := &screen{facts: app.Facts{Locale: "zh-CN", WindowWidth: 420}}
+	tt := ui.NewTester(wide.view, 420, 360)
+	if err := tt.Click("设置"); err != nil {
+		t.Fatalf("open settings: %v", err)
+	}
+	for _, label := range []string{"补丁源", "Lua 配置", "关于"} {
+		if !tt.HasText(label) {
+			t.Fatalf("wide texts %q, want the whole tab strip", tt.Texts())
+		}
+	}
+
+	narrow := &screen{facts: app.Facts{Locale: "zh-CN", WindowWidth: 380}}
+	tt = ui.NewTester(narrow.view, 380, 340)
+	if err := tt.Click("设置"); err != nil {
+		t.Fatalf("open settings: %v", err)
+	}
+	if tt.HasText("补丁源") {
+		t.Fatalf("narrow texts %q, the whole strip still overflows", tt.Texts())
+	}
+	committed := 0
+	narrow.actions = view.Actions{CommitPath: func(raw string) bool { committed++; return true }}
+	narrow.state.PathFocused = true
+	tt.Frame()
+	if err := tt.Click("通用"); err != nil {
+		t.Fatalf("open the tab dropdown: %v", err)
+	}
+	if err := tt.Click("补丁源"); err != nil {
+		t.Fatalf("choose the patch source tab: %v", err)
+	}
+	if narrow.state.Tab != int(app.TabPatchSource) {
+		t.Fatalf("tab = %d, want the patch source tab", narrow.state.Tab)
+	}
+	if committed != 1 || narrow.state.PathFocused {
+		t.Errorf("commits = %d focused %v, want the path draft committed as on the strip", committed, narrow.state.PathFocused)
+	}
+}
+
 func TestTheGearOpensTheSettingsDialogWithTheFiveTabs(t *testing.T) {
 	s, tt := dialog(t)
 	if !s.state.SettingsOpen {

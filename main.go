@@ -55,11 +55,12 @@ func main() {
 			Width:     480,
 			Height:    360,
 			MinWidth:  320,
-			MinHeight: 280,
+			MinHeight: 340,
 			StateKey:  "main",
 			Content:   ui.View(s.view),
 		})
 		s.frame = win.Invalidate
+		s.windowWidth = func() float32 { return float32(win.ContentBounds().Width) }
 		s.onUI = win.Update
 		s.retitle = win.SetTitle
 		s.visible = func() bool { return win.IsVisible() && !win.IsMinimized() }
