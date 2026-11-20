@@ -66,6 +66,7 @@ func (s *session) commitSteamPath(raw string) bool {
 	if path != "" && (!s.host.IsDir(path) || !s.host.IsReadableDir(path)) {
 		return false
 	}
+	s.uiState.PathNotFound = false
 	if path == s.config().SteamPath {
 		return true
 	}
@@ -73,6 +74,17 @@ func (s *session) commitSteamPath(raw string) bool {
 	s.writeConfig(func(cfg *config.Config) { cfg.SteamPath = path })
 	s.startCompat()
 	return true
+}
+
+func (s *session) detectSteam() {
+	path := detectSteamPath(s.host, getenv, s.registry)
+	if path == "" {
+		s.uiState.PathNotFound = true
+		s.draw()
+		return
+	}
+	s.uiState.PathError = !s.commitSteamPath(path)
+	s.draw()
 }
 
 func (s *session) setLanguage(language app.Language) {

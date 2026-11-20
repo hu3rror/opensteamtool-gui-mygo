@@ -489,7 +489,10 @@ func TestARepeatedCommitDoesNotWriteAgain(t *testing.T) {
 	}
 }
 
-func TestAStaleSavedPathOpensTheWizardWithThePathKept(t *testing.T) {
+func TestAStaleSavedPathOpensTheWizardAskingForANewOne(t *testing.T) {
+	steamRegistry = func(string, string) string { return "" }
+	t.Cleanup(func() { steamRegistry = registryString })
+
 	dir := t.TempDir()
 	gone := filepath.Join(t.TempDir(), "gone")
 	if err := config.Save(dir, config.Config{SteamPath: gone, Language: app.LanguageChinese}); err != nil {
@@ -504,8 +507,11 @@ func TestAStaleSavedPathOpensTheWizardWithThePathKept(t *testing.T) {
 	if !slices.Contains(shown(t, s), "首次运行向导") {
 		t.Fatalf("texts = %q, want the wizard", shown(t, s))
 	}
-	if s.uiState.PathDraft != gone {
-		t.Fatalf("draft = %q, want the saved path for the path step", s.uiState.PathDraft)
+	if s.uiState.PathDraft != "" {
+		t.Fatalf("draft = %q, want the stale path dropped for the path step", s.uiState.PathDraft)
+	}
+	if !s.uiState.PathNotFound {
+		t.Fatal("a stale saved path shows no hint for the empty field")
 	}
 }
 

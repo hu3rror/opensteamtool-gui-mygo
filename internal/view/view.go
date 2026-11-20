@@ -18,6 +18,7 @@ type State struct {
 	PathDraft    string
 	PathFocused  bool
 	PathError    bool
+	PathNotFound bool
 	PathHandle   ui.Handle
 
 	Source        source.Source
@@ -40,6 +41,7 @@ type Actions struct {
 	SetTheme            func(app.Theme)
 	CommitPath          func(raw string) bool
 	Browse              func()
+	Detect              func()
 	ApplySource         func(draft source.Draft) (source.Source, bool)
 	SetEntry            func(source.Entry)
 	CheckUpdate         func()
@@ -112,11 +114,6 @@ func wizardLanguage(c *ui.Context, v app.View, st *State, a Actions) {
 	if ui.Select(c, &value, labels).Changed() {
 		a.WizardLanguage(app.Language(slices.Index(labels, value)))
 	}
-	t := c.Theme()
-	ui.Column(c).Padding(t.Space(3)).Gap(t.Space(2)).Background(t.Surface).Border(1, t.Border).Radius(t.Radius).Children(func() {
-		ui.Text(c, text(v.Lang, applied)).TextColor(t.Success)
-		ui.Text(c, text(v.Lang, applyAndStart))
-	})
 }
 
 func wizardTheme(c *ui.Context, v app.View, st *State, a Actions) {
@@ -220,20 +217,18 @@ func wizardBack(c *ui.Context, v app.View, a Actions) {
 }
 
 func wizardPath(c *ui.Context, v app.View, st *State, a Actions) {
-	t := c.Theme()
 	pathField(c, v, st, a, text(v.Lang, wizardPathPrompt), wizardPathError, "")
 	if ui.Button(c, text(v.Lang, browse)).Clicked() {
 		a.Browse()
 	}
 	sourceChoices(c, v, st)
-	ui.Text(c, text(v.Lang, fileLayout)).TextColor(t.TextMuted)
-	ui.Text(c, text(v.Lang, layoutLabels[st.Draft().Layout()])).TextColor(t.TextMuted)
 }
 
 func sourceChoices(c *ui.Context, v app.View, st *State) {
 	ui.RadioGroup(c, func() {
 		for _, builtin := range source.Builtins() {
-			if ui.Radio(c, &st.SourceChoice, builtin.Key, text(v.Lang, sourceLabels[builtin.Key])).Changed() {
+			row := ui.Radio(c, &st.SourceChoice, builtin.Key, builtin.Repository).Tooltip(sourceTooltip(v.Lang, builtin))
+			if row.Changed() {
 				st.SourceError = false
 			}
 		}
@@ -241,6 +236,10 @@ func sourceChoices(c *ui.Context, v app.View, st *State) {
 			st.SourceError = false
 		}
 	})
+	t := c.Theme()
+	if st.SourceChoice == source.KeyOfficial {
+		ui.Text(c, text(v.Lang, officialStale)).TextColor(t.Warning)
+	}
 	if st.SourceChoice != CustomChoice {
 		return
 	}
@@ -625,14 +624,22 @@ func pathField(c *ui.Context, v app.View, st *State, a Actions, label string, er
 		st.commitPath(a)
 	}
 	st.PathFocused = focused
+	if st.PathNotFound {
+		ui.Text(c, text(v.Lang, steamNotFound)).TextColor(c.Theme().Warning)
+	}
 }
 
 func steamPage(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
 	pathField(c, v, st, a, text(v.Lang, steamPathRow), steamPathError, text(v.Lang, steamPathHint))
-	if ui.Button(c, text(v.Lang, browse)).Clicked() {
-		a.Browse()
-	}
+	ui.Row(c).Gap(t.Space(2)).Children(func() {
+		if ui.Button(c, text(v.Lang, browse)).Clicked() {
+			a.Browse()
+		}
+		if ui.Button(c, text(v.Lang, autoDetect)).Clicked() {
+			a.Detect()
+		}
+	})
 	entryControl(c, v, st, a)
 	ui.Text(c, text(v.Lang, steamCfgNote)).TextColor(t.TextMuted)
 	compatibilitySection(c, v, st, a)
@@ -686,10 +693,6 @@ func patchSourcePage(c *ui.Context, v app.View, st *State, a Actions) {
 	ui.Column(c).Gap(t.Space(2)).Children(func() {
 		sourceChoices(c, v, st)
 		draft := st.Draft()
-		ui.Row(c).Gap(t.Space(2)).Children(func() {
-			ui.Text(c, text(v.Lang, fileLayout)).TextColor(t.TextMuted)
-			ui.Text(c, text(v.Lang, layoutLabels[draft.Layout()]))
-		})
 		if _, err := draft.Resolve(); err == nil && !draft.Same(st.Source) {
 			if ui.Button(c, text(v.Lang, applyAndDownload)).Clicked() {
 				if chosen, ok := a.ApplySource(draft); ok {

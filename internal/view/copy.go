@@ -81,12 +81,14 @@ const (
 	closeButton              key = "关闭"
 	steamCfgNote             key = "steam.cfg 已锁定 Steam 客户端自动更新"
 	steamDialogTitle         key = "选择 Steam 目录"
-	officialSource           key = "官方源（长期未更新）"
-	communitySource          key = "社区维护"
-	steamDaddySource         key = "社区维护（SteamDaddy 布局）"
+	officialRole             key = "官方源"
+	communityRole            key = "社区维护"
+	longUnmaintained         key = "长期未更新"
+	officialStale            key = "官方源长期未更新，建议使用社区维护源"
 	customRepository         key = "自定义仓库"
 	customSourceHint         key = "自定义源需 github.com 仓库地址（owner/repo）"
-	fileLayout               key = "文件布局"
+	steamNotFound            key = "未找到 Steam 安装目录，请手动选择"
+	autoDetect               key = "自动检测"
 	openSteamToolLayoutLabel key = "OpenSteamTool 布局"
 	steamDaddyLayoutLabel    key = "SteamDaddy 布局"
 	entryRow                 key = "注入入口"
@@ -227,12 +229,14 @@ var copyTable = map[key]string{
 	closeButton:              "Close",
 	steamCfgNote:             "steam.cfg already locks the Steam client's automatic updates",
 	steamDialogTitle:         "Choose the Steam directory",
-	officialSource:           "Official (not updated for a long time)",
-	communitySource:          "Community-maintained",
-	steamDaddySource:         "Community-maintained (SteamDaddy layout)",
+	officialRole:             "Official",
+	communityRole:            "Community-maintained",
+	longUnmaintained:         "Not updated for a long time",
+	officialStale:            "The official source is long unmaintained; prefer a community-maintained one",
 	customRepository:         "Custom repository",
 	customSourceHint:         "A custom source needs a github.com repository address (owner/repo)",
-	fileLayout:               "File layout",
+	steamNotFound:            "Steam is not installed here; choose its folder",
+	autoDetect:               "Detect automatically",
 	openSteamToolLayoutLabel: "OpenSteamTool layout",
 	steamDaddyLayoutLabel:    "SteamDaddy layout",
 	entryRow:                 "Injection entry",
@@ -356,10 +360,22 @@ func steamWord(running bool) key {
 	return steamStopped
 }
 
-var sourceLabels = map[string]key{
-	source.KeyOfficial:   officialSource,
-	source.KeyCommunity:  communitySource,
-	source.KeySteamDaddy: steamDaddySource,
+func sourceTooltip(l app.Lang, s source.Source) string {
+	parts := []string{text(l, sourceRole(s))}
+	if name, ok := layoutLabels[s.Layout]; ok {
+		parts = append(parts, text(l, name))
+	}
+	if s.Key == source.KeyOfficial {
+		parts = append(parts, text(l, longUnmaintained))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func sourceRole(s source.Source) key {
+	if s.Key == source.KeyOfficial {
+		return officialRole
+	}
+	return communityRole
 }
 
 var layoutLabels = map[source.Layout]key{

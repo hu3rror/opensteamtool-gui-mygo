@@ -90,22 +90,22 @@ func TestEveryWizardStepNamesItselfAndSaysWhatItChanges(t *testing.T) {
 	}
 }
 
-func TestTheLanguageStepPreviewsTheChosenLanguage(t *testing.T) {
+func TestTheLanguageStepFollowsTheChosenLanguage(t *testing.T) {
 	for _, test := range []struct {
 		locale string
 		want   string
 		absent string
 	}{
-		{"zh-CN", "应用补丁并启动 Steam", "Apply patch and start Steam"},
-		{"en-US", "Apply patch and start Steam", "应用补丁并启动 Steam"},
+		{"zh-CN", "影响窗口、对话框和托盘菜单里的全部文字。", "Changes every word in the window, the dialogs and the tray menu."},
+		{"en-US", "Changes every word in the window, the dialogs and the tray menu.", "影响窗口、对话框和托盘菜单里的全部文字。"},
 	} {
 		facts := openWizard(app.Facts{Locale: test.locale})
 		_, tt := wizardScreen(t, facts, view.Actions{})
-		if sample, found := tt.Find(test.want); !found || sample.W == 0 {
-			t.Errorf("%s: sample %+v found %v, texts %q, want the sample %q on screen", test.locale, sample, found, tt.Texts(), test.want)
+		if !tt.HasText(test.want) {
+			t.Errorf("%s: texts %q, want the hint %q", test.locale, tt.Texts(), test.want)
 		}
 		if tt.HasText(test.absent) {
-			t.Errorf("%s: texts %q, the sample stays in the other language", test.locale, tt.Texts())
+			t.Errorf("%s: texts %q, the step stays in the other language", test.locale, tt.Texts())
 		}
 	}
 }
@@ -297,7 +297,7 @@ func TestThePathStepDraftsThePatchSource(t *testing.T) {
 	facts := openWizard(app.Facts{})
 	facts.Wizard.Step = app.WizardPath
 	_, tt := wizardScreen(t, facts, view.Actions{})
-	if !tt.HasText("社区维护") || !tt.HasText("自定义仓库") {
+	if !tt.HasText("huanyuejue/OpenSteamTool") || !tt.HasText("自定义仓库") {
 		t.Fatalf("texts %q, want the patch source draft", tt.Texts())
 	}
 }
@@ -468,41 +468,33 @@ func TestThePathStepScrollsToItsSourceChoices(t *testing.T) {
 	facts := openWizard(app.Facts{SteamPath: "C:/Steam", SteamPathValid: true})
 	facts.Wizard.Step = app.WizardPath
 	_, tt := wizardScreen(t, facts, view.Actions{})
+	tt.SetSize(480, 300)
+	tt.Frame()
 
-	last, found := tt.Find("OpenSteamTool 布局")
+	last, found := tt.Find("huanyuejue/OpenSteamTool")
 	if !found {
-		t.Fatalf("texts %q, want the layout conclusion", tt.Texts())
+		t.Fatalf("texts %q, want the last source row", tt.Texts())
 	}
 	if last.W != 0 {
-		t.Fatalf("the layout conclusion at %+v already fits, nothing to scroll", last)
+		t.Fatalf("the last source row at %+v already fits, nothing to scroll", last)
 	}
 
 	tt.Move(240, 150)
 	tt.Scroll(240, 150, 0, 400)
-	last, found = tt.Find("OpenSteamTool 布局")
+	last, found = tt.Find("huanyuejue/OpenSteamTool")
 	if !found || last.W == 0 {
-		t.Fatalf("the layout conclusion at %+v stays hidden after scrolling", last)
+		t.Fatalf("the last source row at %+v stays hidden after scrolling", last)
 	}
 }
 
-func TestTheLanguageSampleStaysReachableAtTheSmallestWindow(t *testing.T) {
+func TestTheLanguageStepShowsNoAppliedPreview(t *testing.T) {
 	facts := openWizard(app.Facts{Locale: "zh-CN"})
-	s := &screen{facts: facts}
-	tt := ui.NewTester(s.view, 320, 280)
+	_, tt := wizardScreen(t, facts, view.Actions{})
 
-	sample, found := tt.Find("应用补丁并启动 Steam")
-	if !found {
-		t.Fatalf("texts %q, want the language sample", tt.Texts())
-	}
-	if sample.W != 0 {
-		t.Fatalf("the sample at %+v already fits, nothing to scroll", sample)
-	}
-
-	tt.Move(160, 140)
-	tt.Scroll(160, 140, 0, 200)
-	sample, found = tt.Find("应用补丁并启动 Steam")
-	if !found || sample.W == 0 {
-		t.Fatalf("the sample at %+v stays hidden after scrolling", sample)
+	for _, gone := range []string{"已应用", "应用补丁并启动 Steam"} {
+		if tt.HasText(gone) {
+			t.Errorf("the language step shows %q: %q", gone, tt.Texts())
+		}
 	}
 }
 

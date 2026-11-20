@@ -919,6 +919,52 @@ func TestTheRiskLineOpensTheSteamTab(t *testing.T) {
 	}
 }
 
+func steamTab(t *testing.T, facts app.Facts, a view.Actions) (*screen, *ui.Tester) {
+	t.Helper()
+	if facts.Locale == "" {
+		facts.Locale = "zh-CN"
+	}
+	s := &screen{facts: facts}
+	s.actions = a
+	tt := ui.NewTester(s.view, 480, 720)
+	if err := tt.Click("设置"); err != nil {
+		t.Fatalf("click the gear: %v", err)
+	}
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatalf("open the Steam tab: %v", err)
+	}
+	return s, tt
+}
+
+func TestTheSteamTabOffersAutomaticDetection(t *testing.T) {
+	detected := 0
+	_, tt := steamTab(t, app.Facts{SteamPathValid: true}, view.Actions{
+		CommitPath: func(string) bool { return true },
+		Detect:     func() { detected++ },
+	})
+	if err := tt.Click("自动检测"); err != nil {
+		t.Fatalf("click the detect button: %v", err)
+	}
+	if detected != 1 {
+		t.Errorf("detection ran %d times, want once", detected)
+	}
+}
+
+func TestTheSteamTabSaysWhenNothingWasFound(t *testing.T) {
+	const hint = "未找到 Steam 安装目录，请手动选择"
+	s, tt := steamTab(t, app.Facts{SteamPathValid: true}, view.Actions{
+		CommitPath: func(string) bool { return true },
+	})
+	if tt.HasText(hint) {
+		t.Fatalf("the hint shows before any detection: %q", tt.Texts())
+	}
+	s.state.PathNotFound = true
+	tt.Frame()
+	if !tt.HasText(hint) {
+		t.Errorf("texts %q, want the not-found hint", tt.Texts())
+	}
+}
+
 func compatDialog(t *testing.T) (*screen, *ui.Tester) {
 	t.Helper()
 	s := &screen{facts: app.Facts{Locale: "zh-CN"}}
