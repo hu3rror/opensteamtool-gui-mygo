@@ -234,6 +234,7 @@ type Facts struct {
 	Language        Language
 	Theme           Theme
 	Locale          string
+	WindowWidth     float32
 	Wizard          Wizard
 	SteamPath       string
 	SteamPathValid  bool
@@ -265,6 +266,7 @@ type Facts struct {
 
 type View struct {
 	Lang            Lang
+	WindowWidth     float32
 	Wizard          WizardView
 	MainState       MainState
 	Explanation     Explanation
@@ -289,6 +291,7 @@ type View struct {
 func Derive(f Facts) View {
 	v := View{
 		Lang:            f.Language.Resolve(f.Locale),
+		WindowWidth:     f.WindowWidth,
 		Wizard:          wizardViewOf(f.Wizard, f.SteamPathValid),
 		MainState:       mainStateOf(f),
 		Conflict:        f.Conflict,

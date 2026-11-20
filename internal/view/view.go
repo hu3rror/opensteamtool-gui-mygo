@@ -458,20 +458,33 @@ func updateSlot(c *ui.Context, v app.View, a Actions) {
 	})
 }
 
+const tabsWidth float32 = 420
+
+func changeTab(st *State, a Actions) {
+	if st.PathFocused {
+		st.commitPath(a)
+		st.PathFocused = false
+	}
+	if st.SourceFocused {
+		st.commitSource()
+		st.SourceFocused = false
+	}
+}
+
 func settingsDialog(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
 	panel := func() {
 		ui.Column(c).Grow(1).MaxWidth(380).Padding(t.Space(6)).Gap(t.Space(4)).Children(func() {
 			ui.Text(c, text(v.Lang, settings)).FontSize(t.FontSize * 1.25)
-			if ui.Tabs(c, &st.Tab, tabLabels(v.Lang)...).Changed() {
-				if st.PathFocused {
-					st.commitPath(a)
-					st.PathFocused = false
+			labels := tabLabels(v.Lang)
+			if v.WindowWidth > 0 && v.WindowWidth < tabsWidth {
+				value := labels[st.Tab]
+				if ui.Select(c, &value, labels).Changed() {
+					st.Tab = slices.Index(labels, value)
+					changeTab(st, a)
 				}
-				if st.SourceFocused {
-					st.commitSource()
-					st.SourceFocused = false
-				}
+			} else if ui.Tabs(c, &st.Tab, labels...).Changed() {
+				changeTab(st, a)
 			}
 			ui.Scroll(c).Grow(1).Children(func() {
 				switch app.Tab(st.Tab) {
