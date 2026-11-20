@@ -1,6 +1,7 @@
 package view_test
 
 import (
+	"image/color"
 	"slices"
 	"testing"
 
@@ -17,6 +18,22 @@ func wizardScreen(t *testing.T, facts app.Facts, actions view.Actions) (*screen,
 	}
 	s := &screen{facts: facts, actions: actions}
 	return s, ui.NewTester(s.view, 480, 360)
+}
+
+func wizardDrawing(t *testing.T, facts app.Facts, actions view.Actions, dark bool) (*screen, func(*ui.Context)) {
+	t.Helper()
+	s, _ := wizardScreen(t, facts, actions)
+	draw := s.view
+	if dark {
+		draw = func(c *ui.Context) {
+			ui.Themed(c, ui.DarkTheme()).Children(func() { s.view(c) })
+		}
+	}
+	return s, draw
+}
+
+func paint(px color.RGBA) ui.Color {
+	return ui.Color{R: px.R, G: px.G, B: px.B, A: px.A}
 }
 
 func openWizard(facts app.Facts) app.Facts {
@@ -93,13 +110,100 @@ func TestTheLanguageStepPreviewsTheChosenLanguage(t *testing.T) {
 	}
 }
 
-func TestTheThemeStepShowsBothAppearances(t *testing.T) {
+func TestEachThemeCardKeepsItsFillClearOfItsOwnBackground(t *testing.T) {
+	light, dark := ui.LightTheme(), ui.DarkTheme()
+	fillTint := float32(0.16)
+	for _, windowDark := range []bool{false, true} {
+		facts := openWizard(app.Facts{})
+		facts.Wizard.Step = app.WizardTheme
+		_, draw := wizardDrawing(t, facts, view.Actions{}, windowDark)
+		tt := ui.NewTester(draw, 480, 360)
+		tt.Frame()
+		img := tt.Image()
+		window := light
+		if windowDark {
+			window = dark
+		}
+		for _, test := range []struct {
+			card  string
+			looks []*ui.Theme
+		}{
+			{card: "浅色", looks: []*ui.Theme{light}},
+			{card: "深色", looks: []*ui.Theme{dark}},
+			{card: "跟随系统", looks: []*ui.Theme{light, dark}},
+		} {
+			card, found := tt.AccessByRole(ui.RoleRadio, test.card)
+			if !found || card.Bounds.W == 0 {
+				t.Fatalf("window dark %v: texts %q, want the %s card on screen", windowDark, tt.Texts(), test.card)
+			}
+			box := card.Bounds
+			y := int(box.Y + box.H/2)
+			if tray := paint(img.RGBAAt(int(box.X)-2, y)); tray != window.Surface {
+				t.Errorf("window dark %v: the %s card sits on %v, want the tray %v", windowDark, test.card, tray, window.Surface)
+			}
+			if under := paint(img.RGBAAt(int(box.X)+3, int(box.Y+box.H)-4)); under != window.Background {
+				t.Errorf("window dark %v: the %s card's name sits on %v, want the window background %v", windowDark, test.card, under, window.Background)
+			}
+			for at, look := range test.looks {
+				x := int(box.X + box.W/2)
+				if len(test.looks) > 1 {
+					x = int(box.X + box.W/4)
+					if at == 1 {
+						x = int(box.X + 3*box.W/4)
+					}
+				}
+				fill := paint(img.RGBAAt(x, y))
+				if want := look.Background.Mix(look.Text, fillTint); fill != want {
+					t.Errorf("window dark %v: the %s card fills with %v, want %v", windowDark, test.card, fill, want)
+				}
+			}
+		}
+	}
+}
+
+func TestTheThemeCardsAreRadiosWithTheirNames(t *testing.T) {
 	facts := openWizard(app.Facts{})
 	facts.Wizard.Step = app.WizardTheme
-	_, tt := wizardScreen(t, facts, view.Actions{})
-	for _, want := range []string{"浅色", "深色"} {
-		if card, found := tt.Find(want); !found || card.W == 0 {
-			t.Errorf("card %+v found %v, texts %q, want the %s appearance on screen", card, found, tt.Texts(), want)
+	_, draw := wizardDrawing(t, facts, view.Actions{}, false)
+	tt := ui.NewTester(draw, 480, 360)
+	tt.Frame()
+	for _, card := range []string{"跟随系统", "深色", "浅色"} {
+		seen, found := tt.AccessByRole(ui.RoleRadio, card)
+		if !found || seen.Bounds.W == 0 {
+			t.Fatalf("access tree %v, want the %s radio on screen without opening anything", tt.AccessAll(), card)
+		}
+		if chosen := seen.Checked; chosen != (card == "跟随系统") {
+			t.Errorf("the %s radio is checked %v, want the default choice checked", card, chosen)
+		}
+	}
+}
+
+func TestTheChosenThemeCardWearsTheAccent(t *testing.T) {
+	facts := openWizard(app.Facts{})
+	facts.Wizard.Step = app.WizardTheme
+	s, draw := wizardDrawing(t, facts, view.Actions{}, false)
+	tt := ui.NewTester(draw, 480, 360)
+	theme := ui.LightTheme()
+	for _, chosen := range []struct {
+		card  string
+		theme app.Theme
+	}{
+		{card: "跟随系统", theme: app.ThemeSystem},
+		{card: "深色", theme: app.ThemeDark},
+		{card: "浅色", theme: app.ThemeLight},
+	} {
+		s.state.WizardTheme = int(chosen.theme)
+		tt.Frame()
+		img := tt.Image()
+		for _, card := range []string{"跟随系统", "深色", "浅色"} {
+			box, _ := tt.AccessByRole(ui.RoleRadio, card)
+			accent := false
+			for x := int(box.Bounds.X) - 3; x <= int(box.Bounds.X)+3; x++ {
+				accent = accent || paint(img.RGBAAt(x, int(box.Bounds.Y+box.Bounds.H/2))) == theme.Accent
+			}
+			if card == chosen.card != accent {
+				t.Errorf("with %s chosen, the %s card carries the accent: %v", chosen.card, card, accent)
+			}
 		}
 	}
 }
@@ -147,20 +251,26 @@ func TestTheWizardPicksALanguageFromADropdown(t *testing.T) {
 	}
 }
 
-func TestTheWizardPicksAThemeFromADropdown(t *testing.T) {
+func TestTheWizardPicksTheThemeFromItsCards(t *testing.T) {
 	picked := []app.Theme{}
 	facts := openWizard(app.Facts{})
 	facts.Wizard.Step = app.WizardTheme
 	_, tt := wizardScreen(t, facts, view.Actions{WizardTheme: func(theme app.Theme) { picked = append(picked, theme) }})
 
-	if err := tt.Click("跟随系统"); err != nil {
-		t.Fatalf("open the theme dropdown: %v", err)
+	for _, pick := range []struct {
+		card string
+		want app.Theme
+	}{
+		{"深色", app.ThemeDark},
+		{"浅色", app.ThemeLight},
+		{"跟随系统", app.ThemeSystem},
+	} {
+		if err := tt.Click(pick.card); err != nil {
+			t.Fatalf("click the %s card: %v", pick.card, err)
+		}
 	}
-	if err := tt.Click("浅色"); err != nil {
-		t.Fatalf("choose the light theme: %v", err)
-	}
-	if !slices.Equal(picked, []app.Theme{app.ThemeLight}) {
-		t.Fatalf("picked = %v, want the light theme", picked)
+	if !slices.Equal(picked, []app.Theme{app.ThemeDark, app.ThemeLight, app.ThemeSystem}) {
+		t.Fatalf("picked = %v, want each card to report its own theme", picked)
 	}
 }
 
