@@ -200,7 +200,7 @@ var copyTable = map[key]string{
 	tabAbout:                 "About",
 	languageRow:              "Language",
 	followSystem:             "Follow system",
-	languageChinese:          "Chinese (simplified)",
+	languageChinese:          "简体中文",
 	languageEnglish:          "English",
 	themeRow:                 "Theme",
 	themeDark:                "Dark",
