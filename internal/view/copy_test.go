@@ -8,7 +8,7 @@ import (
 )
 
 func TestBothLanguagesCarryEveryKey(t *testing.T) {
-	same := map[key]bool{languageEnglish: true}
+	same := map[key]bool{languageChinese: true, languageEnglish: true}
 	for k, english := range copyTable {
 		if strings.TrimSpace(string(k)) == "" || strings.TrimSpace(english) == "" {
 			t.Errorf("key %q has a blank side in %q", k, english)
@@ -109,5 +109,14 @@ func TestEveryTabCarriesALabel(t *testing.T) {
 		if _, ok := copyTable[k]; !ok {
 			t.Errorf("tab %d uses %q, which has no English", tab, k)
 		}
+	}
+}
+
+func TestALanguageIsNamedInItsOwnLanguage(t *testing.T) {
+	if got := text(app.English, languageChinese); got != "简体中文" {
+		t.Errorf("the English interface names the Chinese preference %q", got)
+	}
+	if got := text(app.Chinese, languageEnglish); got != "English" {
+		t.Errorf("the Chinese interface names the English preference %q", got)
 	}
 }
