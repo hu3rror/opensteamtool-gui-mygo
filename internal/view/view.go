@@ -82,28 +82,20 @@ func Main(c *ui.Context, v app.View, st *State, a Actions) {
 
 func wizard(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
-	ui.Row(c).Gap(t.Space(4)).Children(func() {
-		ui.Text(c, text(v.Lang, wizardTitle)).Role(ui.RoleStatus).FontSize(t.FontSize * 1.5)
+	ui.Row(c).Gap(t.Space(2)).Children(func() {
+		ui.Text(c, text(v.Lang, wizardTitle)).TextColor(t.TextMuted)
 		ui.Spacer(c)
 		ui.Text(c, WizardStepLabel(v.Lang, v.Wizard.Step)).TextColor(t.TextMuted)
 	})
+	ui.Text(c, text(v.Lang, wizardStepNames[v.Wizard.Step])).Role(ui.RoleStatus).FontSize(t.FontSize * 1.5)
+	ui.Text(c, text(v.Lang, wizardStepHints[v.Wizard.Step])).TextColor(t.TextMuted)
 	ui.Scroll(c).Grow(1).Children(func() {
-		ui.Column(c).Gap(t.Space(2)).Children(func() {
+		ui.Column(c).Gap(t.Space(3)).Children(func() {
 			switch v.Wizard.Step {
 			case app.WizardLanguage:
-				ui.Text(c, text(v.Lang, wizardLanguagePrompt))
-				labels := choiceLabels(v.Lang, followSystem, languageChinese, languageEnglish)
-				value := labels[st.WizardLanguage]
-				if ui.Select(c, &value, labels).Changed() {
-					a.WizardLanguage(app.Language(slices.Index(labels, value)))
-				}
+				wizardLanguage(c, v, st, a)
 			case app.WizardTheme:
-				ui.Text(c, text(v.Lang, wizardThemePrompt))
-				labels := choiceLabels(v.Lang, followSystem, themeDark, themeLight)
-				value := labels[st.WizardTheme]
-				if ui.Select(c, &value, labels).Changed() {
-					a.WizardTheme(app.Theme(slices.Index(labels, value)))
-				}
+				wizardTheme(c, v, st, a)
 			case app.WizardPath:
 				wizardPath(c, v, st, a)
 			case app.WizardDownload:
@@ -112,6 +104,44 @@ func wizard(c *ui.Context, v app.View, st *State, a Actions) {
 		})
 	})
 	wizardFooter(c, v, a)
+}
+
+func wizardLanguage(c *ui.Context, v app.View, st *State, a Actions) {
+	labels := choiceLabels(v.Lang, followSystem, languageChinese, languageEnglish)
+	value := labels[st.WizardLanguage]
+	if ui.Select(c, &value, labels).Changed() {
+		a.WizardLanguage(app.Language(slices.Index(labels, value)))
+	}
+	t := c.Theme()
+	ui.Column(c).Padding(t.Space(3)).Gap(t.Space(2)).Background(t.Surface).Border(1, t.Border).Radius(t.Radius).Children(func() {
+		ui.Text(c, text(v.Lang, applied)).TextColor(t.Success)
+		ui.Text(c, text(v.Lang, applyAndStart))
+	})
+}
+
+func wizardTheme(c *ui.Context, v app.View, st *State, a Actions) {
+	labels := choiceLabels(v.Lang, followSystem, themeDark, themeLight)
+	value := labels[st.WizardTheme]
+	if ui.Select(c, &value, labels).Changed() {
+		a.WizardTheme(app.Theme(slices.Index(labels, value)))
+	}
+	t := c.Theme()
+	ui.Row(c).Gap(t.Space(3)).Children(func() {
+		themePreview(c, v, ui.DarkTheme(), themeDark, st.WizardTheme == int(app.ThemeDark))
+		themePreview(c, v, ui.LightTheme(), themeLight, st.WizardTheme == int(app.ThemeLight))
+	})
+}
+
+func themePreview(c *ui.Context, v app.View, look *ui.Theme, label key, chosen bool) {
+	t := c.Theme()
+	border, width := t.Border, float32(1)
+	if chosen {
+		border, width = t.Accent, 2
+	}
+	ui.Column(c).Grow(1).Padding(t.Space(3)).Gap(t.Space(2)).Background(look.Background).Border(width, border).Radius(t.Radius).Children(func() {
+		ui.Text(c, text(v.Lang, applied)).TextColor(look.Text)
+		ui.Text(c, text(v.Lang, label)).TextColor(look.TextMuted)
+	})
 }
 
 func wizardFooter(c *ui.Context, v app.View, a Actions) {
