@@ -92,14 +92,14 @@ func wizard(c *ui.Context, v app.View, st *State, a Actions) {
 			switch v.Wizard.Step {
 			case app.WizardLanguage:
 				ui.Text(c, text(v.Lang, wizardLanguagePrompt))
-				labels := wizardLabels(v.Lang, followSystem, languageChinese, languageEnglish)
+				labels := choiceLabels(v.Lang, followSystem, languageChinese, languageEnglish)
 				value := labels[st.WizardLanguage]
 				if ui.Select(c, &value, labels).Changed() {
 					a.WizardLanguage(app.Language(slices.Index(labels, value)))
 				}
 			case app.WizardTheme:
 				ui.Text(c, text(v.Lang, wizardThemePrompt))
-				labels := wizardLabels(v.Lang, followSystem, themeDark, themeLight)
+				labels := choiceLabels(v.Lang, followSystem, themeDark, themeLight)
 				value := labels[st.WizardTheme]
 				if ui.Select(c, &value, labels).Changed() {
 					a.WizardTheme(app.Theme(slices.Index(labels, value)))
@@ -148,7 +148,7 @@ func wizardFooter(c *ui.Context, v app.View, a Actions) {
 	})
 }
 
-func wizardLabels(l app.Lang, keys ...key) []string {
+func choiceLabels(l app.Lang, keys ...key) []string {
 	labels := make([]string, len(keys))
 	for i, k := range keys {
 		labels[i] = text(l, k)
@@ -517,23 +517,19 @@ func generalPage(c *ui.Context, v app.View, st *State, a Actions) {
 	ui.Column(c).Gap(t.Space(3)).Children(func() {
 		ui.Row(c).Gap(t.Space(3)).Children(func() {
 			ui.Text(c, text(v.Lang, languageRow))
-			choice := ui.Segmented(c, &st.Language,
-				text(v.Lang, followSystem),
-				text(v.Lang, languageChinese),
-				text(v.Lang, languageEnglish),
-			)
-			if choice.Changed() {
+			labels := choiceLabels(v.Lang, followSystem, languageChinese, languageEnglish)
+			value := labels[st.Language]
+			if ui.Select(c, &value, labels).Changed() {
+				st.Language = slices.Index(labels, value)
 				a.SetLanguage(app.Language(st.Language))
 			}
 		})
 		ui.Row(c).Gap(t.Space(3)).Children(func() {
 			ui.Text(c, text(v.Lang, themeRow))
-			appearance := ui.Segmented(c, &st.Theme,
-				text(v.Lang, followSystem),
-				text(v.Lang, themeDark),
-				text(v.Lang, themeLight),
-			)
-			if appearance.Changed() {
+			labels := choiceLabels(v.Lang, followSystem, themeDark, themeLight)
+			value := labels[st.Theme]
+			if ui.Select(c, &value, labels).Changed() {
+				st.Theme = slices.Index(labels, value)
 				a.SetTheme(app.Theme(st.Theme))
 			}
 		})
