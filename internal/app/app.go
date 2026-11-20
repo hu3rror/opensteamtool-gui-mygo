@@ -238,6 +238,9 @@ type Facts struct {
 	Wizard          Wizard
 	SteamPath       string
 	SteamPathValid  bool
+	LuaRelative     string
+	LuaDir          string
+	LuaManifest     bool
 	SteamRunning    bool
 	Deployment      Deployment
 	PatchDownloaded bool
@@ -267,6 +270,9 @@ type Facts struct {
 type View struct {
 	Lang            Lang
 	WindowWidth     float32
+	LuaRelative     string
+	LuaDir          string
+	LuaManifest     bool
 	Wizard          WizardView
 	MainState       MainState
 	Explanation     Explanation
@@ -292,6 +298,9 @@ func Derive(f Facts) View {
 	v := View{
 		Lang:            f.Language.Resolve(f.Locale),
 		WindowWidth:     f.WindowWidth,
+		LuaRelative:     f.LuaRelative,
+		LuaDir:          f.LuaDir,
+		LuaManifest:     f.LuaManifest,
 		Wizard:          wizardViewOf(f.Wizard, f.SteamPathValid),
 		MainState:       mainStateOf(f),
 		Conflict:        f.Conflict,

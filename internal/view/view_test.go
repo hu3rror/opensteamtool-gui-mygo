@@ -313,7 +313,7 @@ func TestTheSettingsTabsBecomeOneDropdownWhenTheWindowIsNarrow(t *testing.T) {
 	if err := tt.Click("设置"); err != nil {
 		t.Fatalf("open settings: %v", err)
 	}
-	for _, label := range []string{"补丁源", "Lua 配置", "关于"} {
+	for _, label := range []string{"补丁源", "Lua 目录", "关于"} {
 		if !tt.HasText(label) {
 			t.Fatalf("wide texts %q, want the whole tab strip", tt.Texts())
 		}
@@ -350,7 +350,7 @@ func TestTheGearOpensTheSettingsDialogWithTheFiveTabs(t *testing.T) {
 	if !s.state.SettingsOpen {
 		t.Error("the dialog did not open")
 	}
-	for _, label := range []string{"通用", "补丁源", "Steam 设置", "Lua 配置", "关于", "关闭"} {
+	for _, label := range []string{"通用", "补丁源", "Steam 设置", "Lua 目录", "关于", "关闭"} {
 		if !tt.HasText(label) {
 			t.Errorf("the dialog shows %q without %q", tt.Texts(), label)
 		}
@@ -576,7 +576,7 @@ func TestBrowseAsksTheAppForADirectory(t *testing.T) {
 
 func TestTheDialogKeepsTheTabItWasLeftOn(t *testing.T) {
 	s, tt := dialog(t)
-	if err := tt.Click("Lua 配置"); err != nil {
+	if err := tt.Click("Lua 目录"); err != nil {
 		t.Fatal(err)
 	}
 	if s.state.Tab != int(app.TabLua) {

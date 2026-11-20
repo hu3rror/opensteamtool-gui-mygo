@@ -74,7 +74,7 @@ Hovering a source row shows its role and layout; the official source also shows 
 | General | Interface language, theme |
 | Patch source | Source choice, custom repository, and **Apply and download** when the draft differs from the deployed source |
 | Steam | Steam installation path with automatic detection, injection entry, `steam.cfg` note, Steam core compatibility |
-| Lua configuration | Empty for now; the tray menu opens the Lua folder of the current layout |
+| Lua folder | The folder the current layout loads `.lua` scripts from, with its full path and whether `manifest.lua` is in place; a button opens it, and the tray menu opens it too |
 | About | App version, app update check, project page, setup wizard |
 
 ## Files the app keeps

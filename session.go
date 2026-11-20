@@ -93,6 +93,7 @@ func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg c
 		CommitPath:          s.commitSteamPath,
 		Browse:              s.browseSteamPath,
 		Detect:              s.detectSteam,
+		OpenLua:             s.openLuaFolder,
 		ApplySource:         s.applySource,
 		SetEntry:            s.setEntry,
 		CheckUpdate:         func() { s.checkUpdate() },

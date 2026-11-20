@@ -42,6 +42,7 @@ type Actions struct {
 	CommitPath          func(raw string) bool
 	Browse              func()
 	Detect              func()
+	OpenLua             func()
 	ApplySource         func(draft source.Draft) (source.Source, bool)
 	SetEntry            func(source.Entry)
 	CheckUpdate         func()
@@ -517,6 +518,8 @@ func settingsDialog(c *ui.Context, v app.View, st *State, a Actions) {
 					patchSourcePage(c, v, st, a)
 				case app.TabSteam:
 					steamPage(c, v, st, a)
+				case app.TabLua:
+					luaPage(c, v, a)
 				case app.TabAbout:
 					aboutPage(c, v, a)
 				}
@@ -643,6 +646,33 @@ func steamPage(c *ui.Context, v app.View, st *State, a Actions) {
 	entryControl(c, v, st, a)
 	ui.Text(c, text(v.Lang, steamCfgNote)).TextColor(t.TextMuted)
 	compatibilitySection(c, v, st, a)
+}
+
+func luaPage(c *ui.Context, v app.View, a Actions) {
+	t := c.Theme()
+	ui.Column(c).Gap(t.Space(3)).Children(func() {
+		if v.LuaDir == "" {
+			ui.Text(c, text(v.Lang, pathUnset)).TextColor(t.TextMuted)
+			return
+		}
+		ui.Row(c).Gap(t.Space(3)).Children(func() {
+			ui.Text(c, text(v.Lang, luaLayoutRow)).TextColor(t.TextMuted)
+			ui.Text(c, v.LuaRelative)
+		})
+		ui.Row(c).Gap(t.Space(3)).Children(func() {
+			ui.Text(c, text(v.Lang, luaPathRow)).TextColor(t.TextMuted)
+			ui.Text(c, v.LuaDir)
+		})
+		if v.LuaManifest {
+			ui.Text(c, text(v.Lang, luaManifestReady))
+		} else {
+			ui.Text(c, text(v.Lang, luaManifestMissing)).TextColor(t.TextMuted)
+		}
+		ui.Text(c, text(v.Lang, luaHint)).TextColor(t.TextMuted)
+		if ui.Button(c, text(v.Lang, openLuaFolder)).Clicked() {
+			a.OpenLua()
+		}
+	})
 }
 
 func (st *State) commitPath(a Actions) {

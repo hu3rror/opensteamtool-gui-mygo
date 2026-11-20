@@ -55,7 +55,12 @@ const (
 	tabGeneral               key = "通用"
 	tabPatchSource           key = "补丁源"
 	tabSteam                 key = "Steam 设置"
-	tabLua                   key = "Lua 配置"
+	tabLua                   key = "Lua 目录"
+	luaLayoutRow             key = "布局目录"
+	luaPathRow               key = "完整路径"
+	luaManifestReady         key = "manifest.lua 已就位"
+	luaManifestMissing       key = "尚无 manifest.lua（可选）"
+	luaHint                  key = "补丁从此目录加载 .lua 脚本，改动即时生效。"
 	tabAbout                 key = "关于"
 	languageRow              key = "语言"
 	followSystem             key = "跟随系统"
@@ -203,7 +208,7 @@ var copyTable = map[key]string{
 	tabGeneral:               "General",
 	tabPatchSource:           "Patch source",
 	tabSteam:                 "Steam",
-	tabLua:                   "Lua configuration",
+	tabLua:                   "Lua folder",
 	tabAbout:                 "About",
 	languageRow:              "Language",
 	followSystem:             "Follow system",
@@ -237,6 +242,11 @@ var copyTable = map[key]string{
 	customSourceHint:         "A custom source needs a github.com repository address (owner/repo)",
 	steamNotFound:            "Steam is not installed here; choose its folder",
 	autoDetect:               "Detect automatically",
+	luaLayoutRow:             "Layout folder",
+	luaPathRow:               "Full path",
+	luaManifestReady:         "manifest.lua is in place",
+	luaManifestMissing:       "No manifest.lua yet (optional)",
+	luaHint:                  "The patch loads .lua scripts from this folder; edits apply without a restart.",
 	openSteamToolLayoutLabel: "OpenSteamTool layout",
 	steamDaddyLayoutLabel:    "SteamDaddy layout",
 	entryRow:                 "Injection entry",
