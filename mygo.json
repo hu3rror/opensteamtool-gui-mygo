@@ -2,5 +2,8 @@
   "name": "opensteamtool-gui-mygo",
   "identifier": "com.opensteamtoolgui.mygo",
   "version": "0.1.0",
+  "publisher": "Hu3rror",
+  "copyright": "© 2026 Hu3rror",
+  "license": "MIT",
   "out": "build"
 }
