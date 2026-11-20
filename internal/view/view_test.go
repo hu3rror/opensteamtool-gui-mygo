@@ -342,22 +342,35 @@ func TestAClickOutsideTheDialogKeepsItOpen(t *testing.T) {
 
 func TestTheGeneralTabOffersTheThemeAndReportsTheChoice(t *testing.T) {
 	s, tt := dialog(t)
+	s.state.Language = int(app.LanguageChinese)
+	tt.Frame()
 	var picked []app.Theme
 	s.actions.SetTheme = func(theme app.Theme) { picked = append(picked, theme) }
 
-	for _, label := range []string{"主题", "跟随系统", "深色", "浅色"} {
+	for _, label := range []string{"主题", "跟随系统"} {
 		if !tt.HasText(label) {
 			t.Errorf("the dialog shows %q without %q", tt.Texts(), label)
 		}
 	}
+	if err := tt.Click("跟随系统"); err != nil {
+		t.Fatalf("open the theme dropdown: %v", err)
+	}
+	for _, label := range []string{"深色", "浅色"} {
+		if !tt.HasText(label) {
+			t.Errorf("the open dropdown shows %q without %q", tt.Texts(), label)
+		}
+	}
 	if err := tt.Click("深色"); err != nil {
-		t.Fatalf("click the dark segment: %v", err)
+		t.Fatalf("choose the dark theme: %v", err)
 	}
 	if !slices.Equal(picked, []app.Theme{app.ThemeDark}) {
 		t.Errorf("picked %v, want the dark theme", picked)
 	}
+	if err := tt.Click("深色"); err != nil {
+		t.Fatalf("reopen the theme dropdown: %v", err)
+	}
 	if err := tt.Click("浅色"); err != nil {
-		t.Fatalf("click the light segment: %v", err)
+		t.Fatalf("choose the light theme: %v", err)
 	}
 	if !slices.Equal(picked, []app.Theme{app.ThemeDark, app.ThemeLight}) {
 		t.Errorf("picked %v, want the light theme second", picked)
@@ -369,17 +382,25 @@ func TestTheGeneralTabOffersTheThemeAndReportsTheChoice(t *testing.T) {
 
 func TestTheLanguageChoiceIsReportedAsSoonAsItIsPicked(t *testing.T) {
 	s, tt := dialog(t)
+	s.state.Language = int(app.LanguageChinese)
+	tt.Frame()
 	var picked []app.Language
 	s.actions.SetLanguage = func(language app.Language) { picked = append(picked, language) }
 
+	if err := tt.Click("简体中文"); err != nil {
+		t.Fatalf("open the language dropdown: %v", err)
+	}
 	if err := tt.Click("English"); err != nil {
-		t.Fatalf("click the English segment: %v", err)
+		t.Fatalf("choose English: %v", err)
 	}
 	if !slices.Equal(picked, []app.Language{app.LanguageEnglish}) {
 		t.Errorf("picked %v, want the English preference", picked)
 	}
+	if err := tt.Click("English"); err != nil {
+		t.Fatalf("reopen the language dropdown: %v", err)
+	}
 	if err := tt.Click("简体中文"); err != nil {
-		t.Fatalf("click the Chinese segment: %v", err)
+		t.Fatalf("choose Chinese: %v", err)
 	}
 	if !slices.Equal(picked, []app.Language{app.LanguageEnglish, app.LanguageChinese}) {
 		t.Errorf("picked %v, want the Chinese preference second", picked)
