@@ -253,6 +253,32 @@ func TestDetectingTheSteamPathSavesWhatItFound(t *testing.T) {
 	}
 }
 
+func TestAWizardThatFindsSteamEnablesTheNextStep(t *testing.T) {
+	steam := t.TempDir()
+	host := &rt.Fake{
+		Dirs:  map[string]bool{steam: true},
+		Files: map[string]bool{filepath.Join(steam, "steam.exe"): true},
+	}
+	steamRegistry = func(string, string) string { return steam }
+	t.Cleanup(func() { steamRegistry = registryString })
+
+	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageChinese}, false, t.TempDir())
+	s.actions.WizardNext()
+	s.actions.WizardNext()
+
+	facts := s.snapshot()
+	shown := app.Derive(facts)
+	if shown.Wizard.Step != app.WizardPath {
+		t.Fatalf("step = %v, want the path step", shown.Wizard.Step)
+	}
+	if shown.Wizard.NextDisabled {
+		t.Error("the next step stays disabled after the wizard found Steam itself")
+	}
+	if got := s.config().SteamPath; got != steam {
+		t.Errorf("path = %q, want the detected %q", got, steam)
+	}
+}
+
 func TestDetectionWithoutSteamSaysSoAndChangesNothing(t *testing.T) {
 	dir := t.TempDir()
 	host := &rt.Fake{}
