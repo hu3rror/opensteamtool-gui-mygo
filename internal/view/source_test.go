@@ -3,6 +3,7 @@ package view_test
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -44,19 +45,22 @@ func openPatchSource(t *testing.T, tt *ui.Tester) {
 	}
 }
 
-func TestThePatchSourceTabListsTheBuiltinsAndTheirLayout(t *testing.T) {
+func TestThePatchSourceTabListsTheBuiltinsByRepository(t *testing.T) {
 	_, tt := sourceDialog(t, source.Community())
 	openPatchSource(t, tt)
 	for _, want := range []string{
-		"官方源（长期未更新）",
-		"社区维护",
-		"社区维护（SteamDaddy 布局）",
+		"OpenSteam001/OpenSteamTool",
+		"huanyuejue/OpenSteamTool",
+		"Contrary-v2/SteamDaddy-Dll",
 		"自定义仓库",
-		"文件布局",
-		"OpenSteamTool 布局",
 	} {
 		if !tt.HasText(want) {
 			t.Errorf("the patch source tab shows %q without %q", tt.Texts(), want)
+		}
+	}
+	for _, gone := range []string{"文件布局", "OpenSteamTool 布局", "SteamDaddy 布局"} {
+		if tt.HasText(gone) {
+			t.Errorf("the patch source tab still shows %q: %q", gone, tt.Texts())
 		}
 	}
 	if tt.HasText("应用并下载") {
@@ -64,18 +68,69 @@ func TestThePatchSourceTabListsTheBuiltinsAndTheirLayout(t *testing.T) {
 	}
 }
 
+func TestASourceRowStatesItsRoleAndLayoutOnHover(t *testing.T) {
+	_, tt := sourceDialog(t, source.Community())
+	openPatchSource(t, tt)
+	rest := func(label string) {
+		t.Helper()
+		tt.Move(1, 1)
+		tt.Advance(time.Second)
+		tt.Frame()
+		row, ok := tt.Find(label)
+		if !ok {
+			t.Fatalf("no source row %q in %q", label, tt.Texts())
+		}
+		tt.Move(row.X+row.W/2, row.Y+row.H/2)
+		tt.Advance(time.Second)
+		tt.Frame()
+	}
+	for _, want := range []struct {
+		label string
+		tip   string
+	}{
+		{"OpenSteam001/OpenSteamTool", "官方源 · OpenSteamTool 布局 · 长期未更新"},
+		{"huanyuejue/OpenSteamTool", "社区维护 · OpenSteamTool 布局"},
+		{"Contrary-v2/SteamDaddy-Dll", "社区维护 · SteamDaddy 布局"},
+	} {
+		rest(want.label)
+		if !tt.HasText(want.tip) {
+			t.Errorf("hovering %q shows %q without %q", want.label, tt.Texts(), want.tip)
+		}
+	}
+}
+
+func TestTheOfficialSourceWarnsThatItIsStale(t *testing.T) {
+	const warning = "官方源长期未更新，建议使用社区维护源"
+	_, tt := sourceDialog(t, source.Community())
+	openPatchSource(t, tt)
+	if tt.HasText(warning) {
+		t.Fatalf("a community draft warns about the official source: %q", tt.Texts())
+	}
+	if err := tt.Click("OpenSteam001/OpenSteamTool"); err != nil {
+		t.Fatalf("pick the official source: %v", err)
+	}
+	tt.Frame()
+	if !tt.HasText(warning) {
+		t.Errorf("an official draft shows no warning: %q", tt.Texts())
+	}
+	if err := tt.Click("huanyuejue/OpenSteamTool"); err != nil {
+		t.Fatalf("pick the community source: %v", err)
+	}
+	tt.Frame()
+	if tt.HasText(warning) {
+		t.Errorf("the warning stayed after leaving the official source: %q", tt.Texts())
+	}
+}
+
 func TestPickingAnotherSourceOffersTheApplyAndAppliesIt(t *testing.T) {
 	s, tt := sourceDialog(t, source.Community())
 	openPatchSource(t, tt)
-	if err := tt.Click("社区维护（SteamDaddy 布局）"); err != nil {
+	if err := tt.Click("Contrary-v2/SteamDaddy-Dll"); err != nil {
 		t.Fatalf("pick the SteamDaddy source: %v", err)
 	}
 	tt.Frame()
 	if !tt.HasText("应用并下载") {
 		t.Fatalf("the draft differs without an apply button: %q", tt.Texts())
-	}
-	if !tt.HasText("SteamDaddy 布局") {
-		t.Errorf("the layout line does not follow the draft: %q", tt.Texts())
 	}
 	if err := tt.Click("应用并下载"); err != nil {
 		t.Fatalf("apply the draft: %v", err)
@@ -230,7 +285,7 @@ func TestTheOfficialSourceShowsTheEarlyEntryAsUnavailable(t *testing.T) {
 func TestTheSourceDraftSurvivesATabSwitch(t *testing.T) {
 	s, tt := sourceDialog(t, source.Community())
 	openPatchSource(t, tt)
-	if err := tt.Click("社区维护（SteamDaddy 布局）"); err != nil {
+	if err := tt.Click("Contrary-v2/SteamDaddy-Dll"); err != nil {
 		t.Fatalf("pick the SteamDaddy source: %v", err)
 	}
 	if err := tt.Click("通用"); err != nil {

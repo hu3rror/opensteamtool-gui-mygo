@@ -16,6 +16,8 @@ import (
 
 func getenv(name string) string { return os.Getenv(name) }
 
+var steamRegistry = registryString
+
 func wizardDownloadShape(facts app.Facts) app.WizardDownloadState {
 	if facts.PatchDownloaded && facts.PatchComplete {
 		return app.WizardDownloaded
@@ -23,7 +25,17 @@ func wizardDownloadShape(facts app.Facts) app.WizardDownloadState {
 	return app.WizardNotDownloaded
 }
 
-func detectSteamPath(host rt.Runtime, lookup func(string) string) string {
+func detectSteamPath(host rt.Runtime, lookup func(string) string, registry func(string, string) string) string {
+	for _, probe := range []struct{ key, value string }{
+		{`Software\Valve\Steam`, "SteamPath"},
+		{`HKLM\SOFTWARE\WOW6432Node\Valve\Steam`, "InstallPath"},
+		{`HKLM\SOFTWARE\Valve\Steam`, "InstallPath"},
+	} {
+		path := filepath.FromSlash(registry(probe.key, probe.value))
+		if path != "" && host.IsFile(filepath.Join(path, "steam.exe")) {
+			return path
+		}
+	}
 	for _, base := range []string{lookup("ProgramFiles(x86)"), lookup("ProgramFiles")} {
 		if base == "" {
 			continue
@@ -44,8 +56,8 @@ func (s *session) openWizard() {
 	cfg := s.config()
 	facts := s.factsWithoutGate()
 	path := facts.SteamPath
-	if path == "" {
-		path = detectSteamPath(s.host, getenv)
+	if path == "" || !s.host.IsReadableDir(path) {
+		path = detectSteamPath(s.host, getenv, s.registry)
 	}
 	s.mu.Lock()
 	s.facts.Wizard = app.Wizard{
@@ -58,6 +70,7 @@ func (s *session) openWizard() {
 	s.mu.Unlock()
 	s.uiState.PathDraft = path
 	s.uiState.PathError = false
+	s.uiState.PathNotFound = path == ""
 	s.uiState.PathFocused = false
 	s.syncSource()
 	if s.frame != nil {

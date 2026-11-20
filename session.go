@@ -49,6 +49,7 @@ type session struct {
 	quit    func()
 	now     func() time.Time
 
+	registry   func(string, string) string
 	systemDark func() (bool, bool)
 	applyDark  func(bool)
 	watchTheme func(func()) func()
@@ -79,6 +80,7 @@ func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg c
 		now:     time.Now,
 		compat:  compat.NewRound(),
 
+		registry:   steamRegistry,
 		systemDark: systemAppearance,
 		applyDark:  applyAppearance,
 		watchTheme: mygo.Theme.OnUpdated,
@@ -90,6 +92,7 @@ func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg c
 		SetTheme:            s.setTheme,
 		CommitPath:          s.commitSteamPath,
 		Browse:              s.browseSteamPath,
+		Detect:              s.detectSteam,
 		ApplySource:         s.applySource,
 		SetEntry:            s.setEntry,
 		CheckUpdate:         func() { s.checkUpdate() },

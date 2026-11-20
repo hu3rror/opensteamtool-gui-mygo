@@ -181,11 +181,110 @@ func TestTheDetectedSteamPathFillsTheEmptyDraft(t *testing.T) {
 		}
 		return ""
 	}
-	if got := detectSteamPath(host, lookup); got != steam {
+	noRegistry := func(string, string) string { return "" }
+	if got := detectSteamPath(host, lookup, noRegistry); got != steam {
 		t.Fatalf("detected %q, want %q", got, steam)
 	}
-	if got := detectSteamPath(&rt.Fake{}, lookup); got != "" {
+	if got := detectSteamPath(&rt.Fake{}, lookup, noRegistry); got != "" {
 		t.Errorf("detected %q without a Steam program", got)
+	}
+}
+
+func TestTheRegistryAnswersTheSteamPathBeforeProgramFiles(t *testing.T) {
+	base, registrySteam := t.TempDir(), t.TempDir()
+	host := &rt.Fake{Files: map[string]bool{
+		filepath.Join(registrySteam, "steam.exe"): true,
+		filepath.Join(base, "Steam", "steam.exe"): true,
+	}}
+	registry := func(key, value string) string {
+		if key == `Software\Valve\Steam` && value == "SteamPath" {
+			return filepath.FromSlash(registrySteam)
+		}
+		return ""
+	}
+	want := filepath.FromSlash(registrySteam)
+	if got := detectSteamPath(host, func(string) string { return base }, registry); got != want {
+		t.Errorf("detected %q, want the registry path %q", got, want)
+	}
+}
+
+func TestARegistryPathWithoutSteamIsSkipped(t *testing.T) {
+	base, live, gone := t.TempDir(), t.TempDir(), t.TempDir()
+	host := &rt.Fake{Files: map[string]bool{filepath.Join(live, "steam.exe"): true}}
+	registry := func(key, value string) string {
+		switch key {
+		case `Software\Valve\Steam`:
+			return gone
+		case `HKLM\SOFTWARE\WOW6432Node\Valve\Steam`:
+			return live
+		}
+		return ""
+	}
+	if got := detectSteamPath(host, func(string) string { return base }, registry); got != live {
+		t.Errorf("detected %q, want %q", got, live)
+	}
+}
+
+func TestDetectingTheSteamPathSavesWhatItFound(t *testing.T) {
+	steam := t.TempDir()
+	dir := t.TempDir()
+	host := &rt.Fake{
+		Dirs:  map[string]bool{steam: true},
+		Files: map[string]bool{filepath.Join(steam, "steam.exe"): true},
+	}
+	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageChinese}, true, t.TempDir())
+	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
+	s.registry = func(string, string) string { return steam }
+
+	s.actions.Detect()
+
+	if got := s.uiState.PathDraft; got != steam {
+		t.Errorf("the field holds %q, want %q", got, steam)
+	}
+	if s.uiState.PathNotFound {
+		t.Error("the not-found hint stays after a detection that found Steam")
+	}
+	cfg, _, err := config.Load(dir, host)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.SteamPath != steam {
+		t.Errorf("saved path = %q, want %q", cfg.SteamPath, steam)
+	}
+}
+
+func TestDetectionWithoutSteamSaysSoAndChangesNothing(t *testing.T) {
+	dir := t.TempDir()
+	host := &rt.Fake{}
+	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageChinese}, true, t.TempDir())
+	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
+	s.registry = func(string, string) string { return "" }
+
+	s.actions.Detect()
+
+	if !s.uiState.PathNotFound {
+		t.Error("detection found nothing without the not-found hint")
+	}
+	cfg, _, err := config.Load(dir, host)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.SteamPath != "" {
+		t.Errorf("saved path = %q, want it untouched", cfg.SteamPath)
+	}
+}
+
+func TestCommittingAPathClearsTheNotFoundHint(t *testing.T) {
+	steam := t.TempDir()
+	host := &rt.Fake{Dirs: map[string]bool{steam: true}}
+	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageChinese}, true, t.TempDir())
+	s.uiState.PathNotFound = true
+
+	if !s.commitSteamPath(steam) {
+		t.Fatal("the commit failed")
+	}
+	if s.uiState.PathNotFound {
+		t.Error("the not-found hint stays after a commit")
 	}
 }
 

@@ -10,7 +10,7 @@
 | 补丁源 | 补丁压缩包的来源，同时锁定一套布局 | 仓库、上游 |
 | 官方源 | `OpenSteam001/OpenSteamTool` 的发布 | 上游源 |
 | 社区维护源 | `huanyuejue/OpenSteamTool` 的发布；新装与配置缺失时的默认源 | 社区源 A |
-| 社区维护（SteamDaddy 布局） | `Contrary-v2/SteamDaddy-Dll` 的发布 | 社区源 B、SteamDaddy 源 |
+| SteamDaddy 源 | `Contrary-v2/SteamDaddy-Dll` 的发布 | 社区源 B、社区维护（SteamDaddy 布局） |
 | 自定义源 | 用户填入的 github.com 仓库地址 | 第三方源 |
 | 线上版本 | 当前源最新发布的补丁版本，归一化后使用 | — |
 | 本地版本 | 当前源缓存目录里记录的补丁版本 | 已下载版本 |
@@ -22,7 +22,7 @@
 |---|---|---|
 | 源布局 | 一个源固定的落地形态：成员清单、改名规则、Lua 子目录 | 文件布局 |
 | 布局 A（OpenSteamTool 布局） | 官方源与社区维护源使用的布局 | 布局 1 |
-| 布局 B（SteamDaddy 布局） | 社区维护（SteamDaddy 布局）使用的布局 | 布局 2 |
+| 布局 B（SteamDaddy 布局） | SteamDaddy 源使用的布局 | 布局 2 |
 | 成员 | 布局清单里的一项，按三级分类：必备、入口、可选 | 文件 |
 | 必备成员 | 缺任一项即判发布包不合格、不写入 | 必需文件 |
 | 入口 | 让 Steam 加载 payload 的代理 DLL；同一时刻只能启用一个 | 注入器、伴生模块 |
