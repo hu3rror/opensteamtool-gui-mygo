@@ -15,9 +15,17 @@ func applyAppearance(dark bool) {
 	mygo.Theme.SetSource(source)
 }
 
+func (s *session) theme() app.Theme {
+	facts := s.factsWithoutGate()
+	if facts.Wizard.Open {
+		return facts.Wizard.Theme
+	}
+	return s.config().Theme
+}
+
 func (s *session) applyTheme() {
 	systemDark, systemKnown := s.systemDark()
-	s.applyDark(s.config().Theme.Dark(systemDark, systemKnown))
+	s.applyDark(s.theme().Dark(systemDark, systemKnown))
 }
 
 func (s *session) setTheme(theme app.Theme) {

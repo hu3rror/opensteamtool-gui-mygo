@@ -113,3 +113,31 @@ func TestTheSystemListenerIsLetGoWhenTheAppLeaves(t *testing.T) {
 		t.Errorf("released the listener %d times, want once when the app leaves", released)
 	}
 }
+
+func TestTheWizardThemeAppliesBeforeItIsSaved(t *testing.T) {
+	dir := t.TempDir()
+	host := &rt.Fake{}
+	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto, Theme: app.ThemeSystem}, true, t.TempDir())
+	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
+	var applied []bool
+	s.applyDark = darkRecorder(&applied)
+	s.systemDark = func() (bool, bool) { return true, true }
+
+	s.openWizard()
+	s.setWizardTheme(app.ThemeLight)
+	if len(applied) == 0 || applied[0] {
+		t.Fatalf("applied %v, the wizard's light theme must beat the dark system", applied)
+	}
+	if cfg := s.config(); cfg.Theme != app.ThemeSystem {
+		t.Fatalf("saved theme %v before the end, want the draft kept", cfg.Theme)
+	}
+
+	s.finishWizard()
+	cfg, readable, err := config.Load(dir, host)
+	if err != nil || !readable {
+		t.Fatalf("Load: %v, readable %v", err, readable)
+	}
+	if cfg.Theme != app.ThemeLight {
+		t.Fatalf("saved theme %v, want the light one", cfg.Theme)
+	}
+}
