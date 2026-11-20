@@ -120,29 +120,53 @@ func wizardLanguage(c *ui.Context, v app.View, st *State, a Actions) {
 }
 
 func wizardTheme(c *ui.Context, v app.View, st *State, a Actions) {
-	labels := choiceLabels(v.Lang, followSystem, themeDark, themeLight)
-	value := labels[st.WizardTheme]
-	if ui.Select(c, &value, labels).Changed() {
-		a.WizardTheme(app.Theme(slices.Index(labels, value)))
-	}
 	t := c.Theme()
-	ui.Row(c).Gap(t.Space(3)).Children(func() {
-		themePreview(c, v, ui.DarkTheme(), themeDark, st.WizardTheme == int(app.ThemeDark))
-		themePreview(c, v, ui.LightTheme(), themeLight, st.WizardTheme == int(app.ThemeLight))
-	})
+	dark, light := ui.DarkTheme(), ui.LightTheme()
+	height := t.Space(28)
+	window := func(look *ui.Theme) {
+		ui.Column(c).Grow(1).Fill().Background(look.Background).Radius(look.Radius).Padding(look.Space(2)).Gap(look.Space(1)).Children(func() {
+			ui.Box(c).Height(look.Space(1)).Background(look.Background.Mix(look.Text, barTint))
+			ui.Box(c).Grow(1).Fill().Background(look.Background.Mix(look.Text, fillTint)).Radius(look.Radius)
+		})
+	}
+	card := func(theme app.Theme, label key, preview func()) {
+		box := ui.RadioBase(c, &st.WizardTheme, int(theme))
+		if box.Changed() {
+			a.WizardTheme(theme)
+		}
+		border, width := t.Border, float32(1)
+		if st.WizardTheme == int(theme) {
+			border, width = t.Accent, 2
+		}
+		box.Grow(1).Height(height).Border(width, border).Radius(t.Radius).Children(func() {
+			ui.Column(c).Fill().Children(func() {
+				ui.Column(c).Grow(1).Fill().Children(preview)
+				ui.Column(c).Padding(t.Space(1)).Background(t.Background).Children(func() {
+					ui.Text(c, text(v.Lang, label)).TextColor(t.Text)
+				})
+			})
+		})
+	}
+	ui.RadioGroup(c, func() {
+		ui.Column(c).Background(t.Surface).Radius(t.Radius).Padding(t.Space(2)).Children(func() {
+			ui.Row(c).Height(height).Gap(t.Space(2)).Children(func() {
+				card(app.ThemeSystem, followSystem, func() {
+					ui.Row(c).Fill().Children(func() {
+						ui.Column(c).Grow(1).Fill().Children(func() { window(light) })
+						ui.Column(c).Grow(1).Fill().Children(func() { window(dark) })
+					})
+				})
+				card(app.ThemeDark, themeDark, func() { window(dark) })
+				card(app.ThemeLight, themeLight, func() { window(light) })
+			})
+		})
+	}).Label(text(v.Lang, themeRow))
 }
 
-func themePreview(c *ui.Context, v app.View, look *ui.Theme, label key, chosen bool) {
-	t := c.Theme()
-	border, width := t.Border, float32(1)
-	if chosen {
-		border, width = t.Accent, 2
-	}
-	ui.Column(c).Grow(1).Padding(t.Space(3)).Gap(t.Space(2)).Background(look.Background).Border(width, border).Radius(t.Radius).Children(func() {
-		ui.Text(c, text(v.Lang, applied)).TextColor(look.Text)
-		ui.Text(c, text(v.Lang, label)).TextColor(look.TextMuted)
-	})
-}
+const (
+	fillTint = 0.16
+	barTint  = 0.3
+)
 
 func wizardFooter(c *ui.Context, v app.View, a Actions) {
 	t := c.Theme()
