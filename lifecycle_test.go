@@ -9,6 +9,7 @@ import (
 
 	"opensteamtool-gui-mygo/internal/app"
 	"opensteamtool-gui-mygo/internal/rt"
+	"opensteamtool-gui-mygo/internal/source"
 	"opensteamtool-gui-mygo/internal/view"
 )
 
@@ -268,6 +269,54 @@ func TestTheLuaFolderIsLeftAloneWithoutAValidSteamPath(t *testing.T) {
 
 	if len(host.Mkdirs) != 0 || len(host.Opens) != 0 {
 		t.Fatalf("mkdirs = %q, opens = %q, want nothing touched", host.Mkdirs, host.Opens)
+	}
+}
+
+func TestTheLuaTabCarriesTheFolderOfTheSourceLayout(t *testing.T) {
+	root := t.TempDir()
+	lua := filepath.Join(root, "config", "lua")
+	host := &rt.Fake{
+		Dirs:  map[string]bool{root: true, lua: true},
+		Files: map[string]bool{filepath.Join(lua, "manifest.lua"): true},
+	}
+	s := newTestSession(t, host, root)
+
+	facts := s.snapshot()
+	if facts.LuaRelative != "config/lua" || facts.LuaDir != lua || !facts.LuaManifest {
+		t.Fatalf("lua = %q in %q (manifest %v), want the OpenSteamTool folder and its script",
+			facts.LuaDir, facts.LuaRelative, facts.LuaManifest)
+	}
+
+	if _, ok := s.actions.ApplySource(source.Draft{Builtin: source.KeySteamDaddy}); !ok {
+		t.Fatal("the SteamDaddy source was rejected")
+	}
+	facts = s.snapshot()
+	if facts.LuaRelative != "config/stplug-in" || facts.LuaDir != filepath.Join(root, "config", "stplug-in") || facts.LuaManifest {
+		t.Fatalf("lua = %q in %q (manifest %v), want the SteamDaddy folder without a script",
+			facts.LuaDir, facts.LuaRelative, facts.LuaManifest)
+	}
+}
+
+func TestTheLuaTabOpensTheFolderOfTheLayout(t *testing.T) {
+	root := t.TempDir()
+	host := &rt.Fake{Dirs: map[string]bool{root: true}}
+	s := newTestSession(t, host, root)
+
+	s.actions.OpenLua()
+
+	want := filepath.Join(root, "config", "lua")
+	if len(host.Opens) != 1 || host.Opens[0] != want {
+		t.Fatalf("opens = %q, want [%q]", host.Opens, want)
+	}
+}
+
+func TestTheLuaTabHasNoFolderWithoutAValidSteamPath(t *testing.T) {
+	s := newTestSession(t, &rt.Fake{}, t.TempDir())
+
+	facts := s.snapshot()
+
+	if facts.LuaDir != "" || facts.LuaRelative != "" || facts.LuaManifest {
+		t.Fatalf("lua = %q in %q, want no folder without a valid Steam path", facts.LuaDir, facts.LuaRelative)
 	}
 }
 

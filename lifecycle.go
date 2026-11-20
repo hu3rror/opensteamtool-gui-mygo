@@ -2,13 +2,11 @@ package main
 
 import (
 	"log"
-	"path/filepath"
 	"sync/atomic"
 	"time"
 
 	"opensteamtool-gui-mygo/internal/app"
 	"opensteamtool-gui-mygo/internal/deploy"
-	"opensteamtool-gui-mygo/internal/source"
 	"opensteamtool-gui-mygo/internal/view"
 )
 
@@ -106,8 +104,8 @@ func (s *session) luaDir() (string, bool) {
 	if !facts.SteamPathValid {
 		return "", false
 	}
-	lua := source.OrDefault(s.config().Source).Layout.Manifest().Lua
-	return filepath.Join(facts.SteamPath, filepath.FromSlash(lua)), true
+	_, dir := luaFolder(s.config())
+	return dir, dir != ""
 }
 
 func (s *session) openLuaFolder() {

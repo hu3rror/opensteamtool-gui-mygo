@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,11 +24,24 @@ func factsFor(language app.Language, locale string, cfg config.Config, host rt.R
 	return withConfig(app.Facts{Language: language, Locale: locale}, cfg, host, dir)
 }
 
+func luaFolder(cfg config.Config) (string, string) {
+	if cfg.SteamPath == "" {
+		return "", ""
+	}
+	lua := source.OrDefault(cfg.Source).Layout.Manifest().Lua
+	return lua, filepath.Join(cfg.SteamPath, filepath.FromSlash(lua))
+}
+
 func withConfig(facts app.Facts, cfg config.Config, host rt.Runtime, dir string) app.Facts {
 	facts.Language = cfg.Language
 	facts.Theme = cfg.Theme
 	facts.SteamPath = cfg.SteamPath
 	facts.SteamPathValid = cfg.SteamPath != "" && host.IsDir(cfg.SteamPath)
+	facts.LuaRelative, facts.LuaDir = "", ""
+	if facts.SteamPathValid {
+		facts.LuaRelative, facts.LuaDir = luaFolder(cfg)
+	}
+	facts.LuaManifest = facts.LuaDir != "" && host.IsFile(filepath.Join(facts.LuaDir, "manifest.lua"))
 	facts.Deployment = app.NotApplied
 	if running, err := steam.Running(host, cfg.SteamPath); err == nil {
 		facts.SteamRunning = running
