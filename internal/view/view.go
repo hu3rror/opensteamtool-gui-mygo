@@ -1,6 +1,7 @@
 package view
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -91,23 +92,17 @@ func wizard(c *ui.Context, v app.View, st *State, a Actions) {
 			switch v.Wizard.Step {
 			case app.WizardLanguage:
 				ui.Text(c, text(v.Lang, wizardLanguagePrompt))
-				choice := ui.Segmented(c, &st.WizardLanguage,
-					text(v.Lang, followSystem),
-					text(v.Lang, languageChinese),
-					text(v.Lang, languageEnglish),
-				)
-				if choice.Changed() {
-					a.WizardLanguage(app.Language(st.WizardLanguage))
+				labels := wizardLabels(v.Lang, followSystem, languageChinese, languageEnglish)
+				value := labels[st.WizardLanguage]
+				if ui.Select(c, &value, labels).Changed() {
+					a.WizardLanguage(app.Language(slices.Index(labels, value)))
 				}
 			case app.WizardTheme:
 				ui.Text(c, text(v.Lang, wizardThemePrompt))
-				choice := ui.Segmented(c, &st.WizardTheme,
-					text(v.Lang, followSystem),
-					text(v.Lang, themeDark),
-					text(v.Lang, themeLight),
-				)
-				if choice.Changed() {
-					a.WizardTheme(app.Theme(st.WizardTheme))
+				labels := wizardLabels(v.Lang, followSystem, themeDark, themeLight)
+				value := labels[st.WizardTheme]
+				if ui.Select(c, &value, labels).Changed() {
+					a.WizardTheme(app.Theme(slices.Index(labels, value)))
 				}
 			case app.WizardPath:
 				wizardPath(c, v, st, a)
@@ -151,6 +146,14 @@ func wizardFooter(c *ui.Context, v app.View, a Actions) {
 			}
 		}
 	})
+}
+
+func wizardLabels(l app.Lang, keys ...key) []string {
+	labels := make([]string, len(keys))
+	for i, k := range keys {
+		labels[i] = text(l, k)
+	}
+	return labels
 }
 
 func wizardBack(c *ui.Context, v app.View, a Actions) {

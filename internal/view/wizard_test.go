@@ -76,16 +76,36 @@ func TestTheWizardBlocksNextWithoutAValidPath(t *testing.T) {
 	}
 }
 
-func TestTheWizardAppliesALanguageWithoutAdvancing(t *testing.T) {
+func TestTheWizardPicksALanguageFromADropdown(t *testing.T) {
 	chosen := []app.Language{}
 	facts := openWizard(app.Facts{})
 	_, tt := wizardScreen(t, facts, view.Actions{WizardLanguage: func(l app.Language) { chosen = append(chosen, l) }})
 
-	if err := tt.Click("英语"); err != nil {
-		t.Fatalf("click English: %v", err)
+	if err := tt.Click("跟随系统"); err != nil {
+		t.Fatalf("open the language dropdown: %v", err)
+	}
+	if err := tt.Click("English"); err != nil {
+		t.Fatalf("choose English: %v", err)
 	}
 	if !slices.Equal(chosen, []app.Language{app.LanguageEnglish}) {
 		t.Fatalf("chosen = %v, want the English preference", chosen)
+	}
+}
+
+func TestTheWizardPicksAThemeFromADropdown(t *testing.T) {
+	picked := []app.Theme{}
+	facts := openWizard(app.Facts{})
+	facts.Wizard.Step = app.WizardTheme
+	_, tt := wizardScreen(t, facts, view.Actions{WizardTheme: func(theme app.Theme) { picked = append(picked, theme) }})
+
+	if err := tt.Click("跟随系统"); err != nil {
+		t.Fatalf("open the theme dropdown: %v", err)
+	}
+	if err := tt.Click("浅色"); err != nil {
+		t.Fatalf("choose the light theme: %v", err)
+	}
+	if !slices.Equal(picked, []app.Theme{app.ThemeLight}) {
+		t.Fatalf("picked = %v, want the light theme", picked)
 	}
 }
 

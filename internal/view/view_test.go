@@ -372,7 +372,7 @@ func TestTheLanguageChoiceIsReportedAsSoonAsItIsPicked(t *testing.T) {
 	var picked []app.Language
 	s.actions.SetLanguage = func(language app.Language) { picked = append(picked, language) }
 
-	if err := tt.Click("英语"); err != nil {
+	if err := tt.Click("English"); err != nil {
 		t.Fatalf("click the English segment: %v", err)
 	}
 	if !slices.Equal(picked, []app.Language{app.LanguageEnglish}) {

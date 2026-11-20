@@ -60,7 +60,7 @@ const (
 	languageRow              key = "语言"
 	followSystem             key = "跟随系统"
 	languageChinese          key = "简体中文"
-	languageEnglish          key = "英语"
+	languageEnglish          key = "English"
 	themeRow                 key = "主题"
 	themeDark                key = "深色"
 	themeLight               key = "浅色"
