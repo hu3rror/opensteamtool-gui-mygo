@@ -129,8 +129,23 @@ func TestWakingShowsAndPaintsOnlyAHiddenWindow(t *testing.T) {
 	}
 }
 
+func TestTheTrayExitQuitsAtOnceWithoutAPatch(t *testing.T) {
+	s := newTestSession(t, &rt.Fake{}, t.TempDir())
+	var quits int
+	s.quit = func() { quits++ }
+
+	s.requestExit()
+	if quits != 1 {
+		t.Fatalf("quits = %d, want the exit without a question", quits)
+	}
+	if s.facts.Pending != app.NoConfirmation {
+		t.Fatalf("pending = %v, want none", s.facts.Pending)
+	}
+}
+
 func TestTheTrayExitAsksForConfirmationThenQuits(t *testing.T) {
 	s := newTestSession(t, &rt.Fake{}, t.TempDir())
+	s.facts.Deployment = app.Applied
 	var quits int
 	s.quit = func() { quits++ }
 
