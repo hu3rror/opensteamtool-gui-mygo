@@ -71,6 +71,10 @@ func (s *session) wake() {
 }
 
 func (s *session) requestExit() {
+	if s.factsWithoutGate().Deployment != app.Applied {
+		s.exit()
+		return
+	}
 	s.wake()
 	s.setPending(app.ConfirmExit)
 }
