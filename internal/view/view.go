@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/yldm-tech/mygo-breeze-ui/ui/breeze"
 
 	"opensteamtool-gui-mygo/internal/app"
 	"opensteamtool-gui-mygo/internal/source"
@@ -69,6 +70,7 @@ type Actions struct {
 }
 
 func Main(c *ui.Context, v app.View, st *State, a Actions) {
+	breeze.Use(c)
 	t := c.Theme()
 	ui.Column(c).Fill().Padding(t.Space(6)).Gap(t.Space(2)).Children(func() {
 		if v.Wizard.Open {
@@ -118,6 +120,16 @@ func wizardLanguage(c *ui.Context, v app.View, st *State, a Actions) {
 }
 
 func wizardTheme(c *ui.Context, v app.View, st *State, a Actions) {
+	look := ui.LightTheme()
+	if c.Theme().Dark {
+		look = ui.DarkTheme()
+	}
+	ui.Themed(c, look).Background(ui.Transparent).Children(func() {
+		themeCards(c, v, st, a)
+	})
+}
+
+func themeCards(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
 	dark, light := ui.DarkTheme(), ui.LightTheme()
 	height := t.Space(28)
@@ -277,27 +289,27 @@ func downloadShape(c *ui.Context, v app.View) {
 func mainScreen(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
 	ui.Row(c).Fill().Gap(t.Space(4)).Children(func() {
-		ui.Text(c, text(v.Lang, mainStateKeys[v.MainState])).Role(ui.RoleStatus).FontSize(t.FontSize * 1.5)
+		breeze.Text(c, text(v.Lang, mainStateKeys[v.MainState]), breeze.TextTitle).Role(ui.RoleStatus)
 		ui.Spacer(c)
-		if ui.Button(c, text(v.Lang, settings)).Clicked() {
+		if breeze.Button(c, text(v.Lang, settings)).Clicked() {
 			st.SettingsOpen = true
 		}
 	})
 	if copy, ok := explanationCopies[v.Explanation]; ok {
-		ui.Text(c, text(v.Lang, copy.title))
-		ui.Text(c, text(v.Lang, copy.body)).TextColor(t.TextMuted)
+		breeze.Text(c, text(v.Lang, copy.title), breeze.TextHeading)
+		breeze.Text(c, text(v.Lang, copy.body)).TextColor(t.TextMuted)
 	}
 	actionRow(c, v, a)
 	secondaryRow(c, v, a)
 	updateSlot(c, v, a)
 	riskLine(c, v, st)
 	ui.Row(c).Gap(t.Space(4)).Children(func() {
-		ui.Text(c, text(v.Lang, steamWord(v.Status.SteamRunning))).Role(ui.RoleStatus)
+		breeze.Text(c, text(v.Lang, steamWord(v.Status.SteamRunning))).Role(ui.RoleStatus)
 		if stage, ok := app.Stage(v.Status.Busy); ok {
-			ui.Text(c, text(v.Lang, mainStateKeys[stage])).Role(ui.RoleStatus)
+			breeze.Text(c, text(v.Lang, mainStateKeys[stage])).Role(ui.RoleStatus)
 		}
 		if copy, ok := resultCopies[v.Status.Result]; ok {
-			ui.Text(c, text(v.Lang, copy)).Role(ui.RoleStatus)
+			breeze.Text(c, text(v.Lang, copy)).Role(ui.RoleStatus)
 		}
 	})
 }
@@ -308,7 +320,7 @@ func riskLine(c *ui.Context, v app.View, st *State) {
 		return
 	}
 	t := c.Theme()
-	line := ui.Button(c, label+"   "+SettingsAffordance(v.Lang)).TextColor(t.Warning)
+	line := breeze.Button(c, label+"   "+SettingsAffordance(v.Lang)).TextColor(t.Warning)
 	if line.Clicked() {
 		st.Tab = int(app.TabSteam)
 		st.SettingsOpen = true
@@ -318,30 +330,30 @@ func riskLine(c *ui.Context, v app.View, st *State) {
 func compatibilitySection(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
 	ui.Column(c).Gap(t.Space(2)).Children(func() {
-		ui.Text(c, text(v.Lang, compatSection)).FontSize(t.FontSize * 1.1)
+		breeze.Text(c, text(v.Lang, compatSection), breeze.TextHeading)
 		ui.Row(c).Gap(t.Space(2)).Children(func() {
-			ui.Badge(c, HealthLabel(v.Lang, v.Health))
+			breeze.Badge(c, HealthLabel(v.Lang, v.Health))
 			if prewarmOffered(v) {
 				ui.Row(c).Children(func() {
-					if ui.Button(c, text(v.Lang, prewarmOffline)).Clicked() {
+					if breeze.Button(c, text(v.Lang, prewarmOffline)).Clicked() {
 						a.Prewarm()
 					}
 				})
 			}
 			if tip, ok := HealthTip(v.Lang, v.Health); ok {
-				ui.Text(c, tip).TextColor(t.TextMuted)
+				breeze.Text(c, tip).TextColor(t.TextMuted)
 			}
 		})
 		switch {
 		case v.Prewarming:
-			ui.Text(c, text(v.Lang, cachingSignatures)).Role(ui.RoleStatus)
+			breeze.Text(c, text(v.Lang, cachingSignatures)).Role(ui.RoleStatus)
 		case v.PrecacheReady:
-			ui.Text(c, text(v.Lang, cacheReady)).Role(ui.RoleStatus)
+			breeze.Text(c, text(v.Lang, cacheReady)).Role(ui.RoleStatus)
 		}
 		if v.PrecacheFailure != app.NoResult {
-			ui.Text(c, CacheFailure(v.Lang, v.PrecacheFailure)).TextColor(t.Danger)
+			breeze.Text(c, CacheFailure(v.Lang, v.PrecacheFailure)).TextColor(t.Danger)
 		}
-		ui.Collapsible(c, text(v.Lang, compatDetails), &st.CompatDetails, func() {
+		breeze.Collapsible(c, text(v.Lang, compatDetails), &st.CompatDetails, func() {
 			compatibilityDetails(c, v, a)
 		})
 	})
@@ -367,16 +379,16 @@ func compatibilityDetails(c *ui.Context, v app.View, a Actions) {
 	ui.Column(c).Gap(t.Space(2)).Children(func() {
 		for _, component := range v.Components {
 			ui.Row(c).Gap(t.Space(2)).Children(func() {
-				ui.Text(c, ComponentLabel(v.Lang, component))
+				breeze.Text(c, ComponentLabel(v.Lang, component))
 				if component.Fingerprint != "" {
-					ui.Text(c, component.Fingerprint).TextColor(t.TextMuted)
+					breeze.Text(c, component.Fingerprint).TextColor(t.TextMuted)
 				}
-				ui.Badge(c, HealthLabel(v.Lang, component.Health))
+				breeze.Badge(c, HealthLabel(v.Lang, component.Health))
 			})
 		}
 		if prewarmOffered(v) {
 			ui.Row(c).Children(func() {
-				if ui.Button(c, text(v.Lang, cacheSignatures)).Clicked() {
+				if breeze.Button(c, text(v.Lang, cacheSignatures)).Clicked() {
 					a.Prewarm()
 				}
 			})
@@ -388,14 +400,14 @@ func actionRow(c *ui.Context, v app.View, a Actions) {
 	t := c.Theme()
 	busy := v.Busy
 	ui.Row(c).Gap(t.Space(4)).Children(func() {
-		if ui.Button(c, text(v.Lang, applyAndStart)).Disabled(busy || v.PrimaryDisabled).Clicked() {
+		if breeze.Button(c, text(v.Lang, applyAndStart)).Disabled(busy || v.PrimaryDisabled).Clicked() {
 			a.Apply()
 		}
 		if v.Conflict == "" {
 			return
 		}
-		ui.Text(c, conflictText(v.Lang, v.Conflict)).Role(ui.RoleStatus)
-		if ui.Button(c, text(v.Lang, removeAndDeploy)).Disabled(busy).Clicked() {
+		breeze.Text(c, conflictText(v.Lang, v.Conflict)).Role(ui.RoleStatus)
+		if breeze.Button(c, text(v.Lang, removeAndDeploy)).Disabled(busy).Clicked() {
 			a.RemoveConflict()
 		}
 	})
@@ -415,7 +427,7 @@ func secondaryRow(c *ui.Context, v app.View, a Actions) {
 	busy := v.Busy
 	ui.Row(c).Gap(t.Space(4)).Children(func() {
 		for _, action := range v.Secondary {
-			if ui.Button(c, text(v.Lang, secondaryLabels[action])).Disabled(busy).Clicked() {
+			if breeze.Button(c, text(v.Lang, secondaryLabels[action])).Disabled(busy).Clicked() {
 				runSecondary(a, action)
 			}
 		}
@@ -464,18 +476,18 @@ func updateSlot(c *ui.Context, v app.View, a Actions) {
 	}
 	patchBusy := v.Status.Busy != app.Idle || v.UpdateInFlight != app.Idle
 	ui.Row(c).Gap(t.Space(4)).Children(func() {
-		if ui.Button(c, text(v.Lang, checkUpdate)).Disabled(patchBusy).Clicked() {
+		if breeze.Button(c, text(v.Lang, checkUpdate)).Disabled(patchBusy).Clicked() {
 			a.CheckUpdate()
 		}
 		if progress != "" {
-			ui.Text(c, text(v.Lang, progress)).Role(ui.RoleStatus)
+			breeze.Text(c, text(v.Lang, progress)).Role(ui.RoleStatus)
 			return
 		}
 		if copy, ok := conclusionCopies[v.Update]; ok {
-			ui.Text(c, text(v.Lang, copy)).Role(ui.RoleStatus)
+			breeze.Text(c, text(v.Lang, copy)).Role(ui.RoleStatus)
 		}
 		if v.DownloadOffered {
-			if ui.Button(c, text(v.Lang, downloadNewVersion)).Disabled(patchBusy).Clicked() {
+			if breeze.Button(c, text(v.Lang, downloadNewVersion)).Disabled(patchBusy).Clicked() {
 				a.Download()
 			}
 		}

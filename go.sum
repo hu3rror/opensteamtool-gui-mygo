@@ -20,6 +20,8 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/ulikunitz/xz v0.5.15 h1:9DNdB5s+SgV3bQ2ApL10xRc35ck0DuIX/isZvIk+ubY=
 github.com/ulikunitz/xz v0.5.15/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
+github.com/yldm-tech/mygo-breeze-ui v0.22.4 h1:ONW+lV+5MHdIik5UuRoZesOALc406N/jflXDbVvBn58=
+github.com/yldm-tech/mygo-breeze-ui v0.22.4/go.mod h1:ZfEox1VDVZtA76UoVwmFfgMGRqt3OgNkQEjBb90M19U=
 go.digitalxero.dev/rpm v0.3.4 h1:iq+rx7zB6wQeNhLQ1mcvW92v9ZqNaxCvuu0+nPVit4w=
 go.digitalxero.dev/rpm v0.3.4/go.mod h1:45EsEzHamzqInyWQx9vpj7OYpL0BrkbQF87VdrLn5wo=
 golang.org/x/crypto v0.57.0 h1:3ZVCjf8Ggz7zneR/EHRVx68Ctf+2pmIMP2UFhh9cC6M=

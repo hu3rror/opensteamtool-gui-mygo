@@ -6,6 +6,7 @@ tool github.com/egoist/mygo/cmd/mygo
 
 require (
 	github.com/egoist/mygo v0.9.2
+	github.com/yldm-tech/mygo-breeze-ui v0.22.4
 	golang.org/x/sys v0.48.0
 )
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/yldm-tech/mygo-breeze-ui/ui/breeze"
 
 	"opensteamtool-gui-mygo/internal/app"
 	"opensteamtool-gui-mygo/internal/view"
@@ -1154,5 +1155,53 @@ func TestAToolCheckNeverDisablesThePatchButtons(t *testing.T) {
 	}
 	if check.Disabled {
 		t.Error("the patch check waits for the tool check")
+	}
+}
+
+type themeLook struct {
+	dark                                     bool
+	background, surface, text, accent, focus ui.Color
+	fontSize, radius                         float32
+}
+
+func lookOf(t ui.Theme) themeLook {
+	return themeLook{t.Dark, t.Background, t.Surface, t.Text, t.Accent, t.Focus, t.FontSize, t.Radius}
+}
+
+func platformTheme(t *testing.T, dark bool, prefs ui.Preferences) (want, got themeLook) {
+	t.Helper()
+	s := &screen{facts: app.Facts{Locale: "zh-CN", SteamPathValid: true}}
+	tt := ui.NewTesterWith(func(c *ui.Context) {
+		s.view(c)
+		got = lookOf(*c.Theme())
+		want = lookOf(*breeze.ThemeOf(c, breeze.Current(), dark, ui.Color{}))
+	}, 480, 360, ui.TesterOptions{Dark: dark, Preferences: prefs})
+	tt.Frame()
+	return want, got
+}
+
+func TestTheViewDrawsInThePlatformTheme(t *testing.T) {
+	lightWant, light := platformTheme(t, false, ui.Preferences{})
+	darkWant, dark := platformTheme(t, true, ui.Preferences{})
+	if light != lightWant || dark != darkWant {
+		t.Errorf("the window draws in %+v and %+v, want the platform themes %+v and %+v", light, dark, lightWant, darkWant)
+	}
+	if light.background == dark.background || light.text == dark.text {
+		t.Errorf("both appearances draw the same, the appearance setting is lost")
+	}
+	usual, _ := platformTheme(t, false, ui.Preferences{})
+	chosen := ui.Preferences{Accent: ui.Hex("#8e44ad"), HighContrast: true, TextScale: 1.5}
+	want, got := platformTheme(t, false, chosen)
+	if got != want {
+		t.Errorf("the window draws in %+v, want the platform theme %+v under the desktop's choices", got, want)
+	}
+	if got.accent == usual.accent {
+		t.Errorf("accent %v, the window ignores the accent the desktop chose", got.accent)
+	}
+	if got.fontSize <= usual.fontSize {
+		t.Errorf("font size %v, want more than the usual %v under a larger text size", got.fontSize, usual.fontSize)
+	}
+	if got.focus.A != 255 {
+		t.Errorf("focus ring %v, want it opaque under the higher contrast setting", got.focus)
 	}
 }
