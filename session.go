@@ -55,11 +55,11 @@ type session struct {
 	watchTheme func(func()) func()
 	stopTheme  func()
 
-	tray      bool
-	quitting  bool
-	ballooned bool
-	painted   time.Time
-	steps     atomic.Int32
+	tray            bool
+	quitting        bool
+	trayNoticeShown bool
+	painted         time.Time
+	steps           atomic.Int32
 }
 
 func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg config.Config, readable bool, dir string) *session {
@@ -86,6 +86,7 @@ func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg c
 		watchTheme: mygo.Theme.OnUpdated,
 		stopTheme:  func() {},
 	}
+	s.trayNoticeShown = cfg.TrayNoticeShown
 	s.facts = factsFor(cfg.Language, locale, cfg, host, s.dir)
 	s.actions = view.Actions{
 		SetLanguage:         s.setLanguage,

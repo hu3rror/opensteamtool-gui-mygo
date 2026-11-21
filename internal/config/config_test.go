@@ -57,6 +57,32 @@ func TestSaveThenLoadCarriesTheChoices(t *testing.T) {
 	}
 }
 
+func TestTheShownTrayNoticeSurvivesASaveAndLoad(t *testing.T) {
+	dir := t.TempDir()
+	if err := config.Save(dir, config.Config{Language: app.LanguageChinese, TrayNoticeShown: true}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	got, readable, err := config.Load(dir, host())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !readable || !got.TrayNoticeShown {
+		t.Errorf("loaded %+v readable %v, want the shown notice kept so it never repeats", got, readable)
+	}
+}
+
+func TestAConfigWithoutATrayNoticeReadsAsNotShown(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, `{"version": 1, "steam_path": "", "language": "zh"}`)
+	got, readable, err := config.Load(dir, host())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !readable || got.TrayNoticeShown {
+		t.Errorf("loaded %+v readable %v, want an older config read with no notice shown", got, readable)
+	}
+}
+
 func TestAnEmptySteamPathIsAChoiceAndNotAMissingField(t *testing.T) {
 	dir := t.TempDir()
 	if err := config.Save(dir, config.Config{Language: app.LanguageAuto}); err != nil {

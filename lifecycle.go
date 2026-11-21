@@ -44,11 +44,22 @@ func (s *session) hideToTray() {
 		return
 	}
 	s.hide()
-	if s.ballooned {
+	if s.trayNoticeShown {
 		return
 	}
-	s.ballooned = true
+	s.trayNoticeShown = true
+	s.recordTrayNotice()
 	s.notify(view.TrayRunning(s.resolvedLanguage()))
+}
+
+func (s *session) recordTrayNotice() {
+	s.onUI(func() {
+		s.mu.Lock()
+		s.cfg.TrayNoticeShown = true
+		cfg := s.cfg
+		s.mu.Unlock()
+		s.save(cfg)
+	})
 }
 
 func (s *session) wake() {

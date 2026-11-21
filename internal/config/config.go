@@ -27,12 +27,13 @@ type DeploymentSnapshot struct {
 }
 
 type Config struct {
-	SteamPath string
-	Language  app.Language
-	Theme     app.Theme
-	Source    source.Source
-	Entry     source.Entry
-	Snapshot  DeploymentSnapshot
+	SteamPath       string
+	Language        app.Language
+	Theme           app.Theme
+	Source          source.Source
+	Entry           source.Entry
+	Snapshot        DeploymentSnapshot
+	TrayNoticeShown bool
 }
 
 type wire struct {
@@ -43,6 +44,7 @@ type wire struct {
 	PatchSource        *string         `json:"patch_source"`
 	Entry              *string         `json:"entry"`
 	DeploymentSnapshot json.RawMessage `json:"deployment_snapshot"`
+	TrayNoticeShown    *bool           `json:"tray_notice_shown"`
 }
 
 type snapshotWire struct {
@@ -164,6 +166,9 @@ func Load(dir string, host rt.Runtime) (Config, bool, error) {
 	}
 	cfg.Entry = source.Effective(cfg.Source, cfg.Entry)
 	cfg.Snapshot = snapshotFrom(w.DeploymentSnapshot)
+	if w.TrayNoticeShown != nil {
+		cfg.TrayNoticeShown = *w.TrayNoticeShown
+	}
 	if cfg.SteamPath != "" && (!host.IsDir(cfg.SteamPath) || !host.IsReadableDir(cfg.SteamPath)) {
 		return cfg, false, fmt.Errorf("read config: %q is not a readable directory", cfg.SteamPath)
 	}
@@ -181,7 +186,7 @@ func Save(dir string, cfg Config) error {
 	if !ok {
 		return fmt.Errorf("save config: %d is not a theme", cfg.Theme)
 	}
-	w := wire{Version: Version, SteamPath: &cfg.SteamPath, Language: &language, Theme: &theme, PatchSource: &patchSource, Entry: &entry}
+	w := wire{Version: Version, SteamPath: &cfg.SteamPath, Language: &language, Theme: &theme, PatchSource: &patchSource, Entry: &entry, TrayNoticeShown: &cfg.TrayNoticeShown}
 	if cfg.Snapshot != (DeploymentSnapshot{}) {
 		snapshot, err := json.Marshal(snapshotWire{
 			Source:       cfg.Snapshot.Source,
