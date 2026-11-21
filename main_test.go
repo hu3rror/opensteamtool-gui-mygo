@@ -352,8 +352,6 @@ func TestTheLanguageAppliesAtOnceAndIsRemembered(t *testing.T) {
 	host := &rt.Fake{}
 	s := newSession(host, noSleep, "zh-CN", config.Config{Language: app.LanguageAuto}, true, t.TempDir())
 	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
-	var titles []string
-	s.retitle = func(title string) { titles = append(titles, title) }
 
 	if !slices.Contains(shown(t, s), "未应用") {
 		t.Fatalf("texts = %q, want the Chinese screen", shown(t, s))
@@ -361,9 +359,6 @@ func TestTheLanguageAppliesAtOnceAndIsRemembered(t *testing.T) {
 	s.actions.SetLanguage(app.LanguageEnglish)
 	if !slices.Contains(shown(t, s), "Not applied") {
 		t.Fatalf("texts = %q, want the English screen", shown(t, s))
-	}
-	if !slices.Equal(titles, []string{"OpenSteamTool Manager"}) {
-		t.Fatalf("titles = %q, want the window retitled once", titles)
 	}
 
 	cfg, readable, err := config.Load(dir, host)

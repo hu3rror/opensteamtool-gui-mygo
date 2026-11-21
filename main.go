@@ -56,7 +56,7 @@ func main() {
 
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
-			Title:    view.Title(s.resolvedLanguage()),
+			Title:    view.Title(),
 			Width:    480,
 			Height:   620,
 			StateKey: "main",
@@ -65,7 +65,6 @@ func main() {
 		s.frame = win.Invalidate
 		s.windowWidth = func() float32 { return float32(win.ContentBounds().Width) }
 		s.onUI = win.Update
-		s.retitle = win.SetTitle
 		s.visible = func() bool { return win.IsVisible() && !win.IsMinimized() }
 		s.hide = win.Hide
 		s.show = func() {
@@ -89,13 +88,13 @@ func main() {
 		})
 		mygo.App.OnSecondInstance(func([]string, string) { s.wake() })
 		s.notify = func(body string) {
-			if err := mygo.NewNotification(mygo.NotificationOptions{Title: view.Title(s.resolvedLanguage()), Body: body}).Show(); err != nil {
+			if err := mygo.NewNotification(mygo.NotificationOptions{Title: view.Title(), Body: body}).Show(); err != nil {
 				log.Printf("show the tray balloon: %v", err)
 			}
 		}
 		tray, err := mygo.NewTray(mygo.TrayOptions{
 			Icon:    trayIcon,
-			ToolTip: view.Title(s.resolvedLanguage()),
+			ToolTip: view.Title(),
 			Menu:    trayMenu(s),
 		})
 		if err != nil {
@@ -104,7 +103,7 @@ func main() {
 			s.tray = true
 			tray.OnClick(func() { s.toggle() })
 			s.retray = func() {
-				tray.SetToolTip(view.Title(s.resolvedLanguage()))
+				tray.SetToolTip(view.Title())
 				tray.SetMenu(trayMenu(s))
 			}
 		}

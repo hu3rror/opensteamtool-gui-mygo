@@ -48,12 +48,9 @@ func TestEveryWordAndExplanationResolvesThroughTheTable(t *testing.T) {
 	}
 }
 
-func TestTitleFollowsTheLanguage(t *testing.T) {
-	if got := Title(app.Chinese); got != "OpenSteamTool 一键管理工具" {
-		t.Errorf("chinese title %q", got)
-	}
-	if got := Title(app.English); got != "OpenSteamTool Manager" {
-		t.Errorf("english title %q", got)
+func TestTheTitleIsTheProductName(t *testing.T) {
+	if got := Title(); got != "OpenSteamTool Manager MyGo" {
+		t.Errorf("title %q", got)
 	}
 }
 

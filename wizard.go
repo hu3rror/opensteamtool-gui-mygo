@@ -11,7 +11,6 @@ import (
 	"opensteamtool-gui-mygo/internal/patch"
 	"opensteamtool-gui-mygo/internal/rt"
 	"opensteamtool-gui-mygo/internal/source"
-	"opensteamtool-gui-mygo/internal/view"
 )
 
 func getenv(name string) string { return os.Getenv(name) }
@@ -91,9 +90,6 @@ func (s *session) setWizardLanguage(language app.Language) {
 	s.facts.Wizard.Language = language
 	s.facts.Language = language
 	s.mu.Unlock()
-	if s.retitle != nil {
-		s.retitle(view.Title(language.Resolve(s.factsWithoutGate().Locale)))
-	}
 	s.draw()
 }
 
@@ -176,9 +172,6 @@ func (s *session) finishWizard() {
 			cfg.SteamPath = path
 		}
 	})
-	if s.retitle != nil {
-		s.retitle(view.Title(wizard.Language.Resolve(facts.Locale)))
-	}
 	if themeChanged {
 		s.applyTheme()
 	}
