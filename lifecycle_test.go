@@ -46,6 +46,39 @@ func TestClosingTheWindowKeepsTheProcessInTheTray(t *testing.T) {
 	}
 }
 
+func TestTheTrayNoticeShowsOnlyOncePerInstall(t *testing.T) {
+	s := newTestSession(t, &rt.Fake{}, t.TempDir())
+	s.tray = true
+	visible := true
+	var balloons int
+	s.visible = func() bool { return visible }
+	s.hide = func() { visible = false }
+	s.notify = func(string) { balloons++ }
+
+	s.closeWindow()
+	if balloons != 1 {
+		t.Fatalf("balloons = %d, want the notice on the first hide", balloons)
+	}
+	cfg := s.config()
+	if !cfg.TrayNoticeShown {
+		t.Fatal("the notice was not recorded, it would show again after a restart")
+	}
+
+	restarted := newSession(&rt.Fake{}, noSleep, "zh-CN", cfg, true, t.TempDir())
+	restarted.tray = true
+	shown := true
+	var again int
+	restarted.visible = func() bool { return shown }
+	restarted.hide = func() { shown = false }
+	restarted.notify = func(string) { again++ }
+
+	restarted.closeWindow()
+	restarted.closeWindow()
+	if again != 0 {
+		t.Fatalf("balloons = %d after a restart, want none ever again", again)
+	}
+}
+
 func TestClosingTheWindowWithoutATrayEndsTheProcess(t *testing.T) {
 	s := newTestSession(t, &rt.Fake{}, t.TempDir())
 	var hides int
