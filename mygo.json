@@ -5,5 +5,8 @@
   "publisher": "Hu3rror",
   "copyright": "© 2026 Hu3rror",
   "license": "MIT",
-  "out": "build"
+  "out": "build",
+  "windows": {
+    "displayName": "OpenSteamTool Manager MyGo"
+  }
 }

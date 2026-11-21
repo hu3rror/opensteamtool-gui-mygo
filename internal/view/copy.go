@@ -22,7 +22,6 @@ const (
 	invalidPathHint          key = "请在设置中指定有效的 Steam 安装路径"
 	patchNotDownloaded       key = "补丁未下载"
 	downloadHint             key = "请点击「检查补丁更新」下载新版本"
-	windowTitle              key = "OpenSteamTool 一键管理工具"
 	steamRunning             key = "Steam 正在运行"
 	steamStopped             key = "Steam 未运行"
 	restartSteam             key = "重启 Steam"
@@ -175,7 +174,6 @@ var copyTable = map[key]string{
 	invalidPathHint:          "Set a valid Steam installation path in settings",
 	patchNotDownloaded:       "Patch not downloaded",
 	downloadHint:             "Click Check for patch updates to download a new version",
-	windowTitle:              "OpenSteamTool Manager",
 	steamRunning:             "Steam is running",
 	steamStopped:             "Steam is not running",
 	restartSteam:             "Restart Steam",
@@ -443,7 +441,7 @@ func toolAvailableText(l app.Lang, version string) string {
 	return strings.Replace(text(l, toolAvailable), "%s", version, 1)
 }
 
-func Title(l app.Lang) string { return text(l, windowTitle) }
+func Title() string { return "OpenSteamTool Manager MyGo" }
 
 func WizardStepLabel(l app.Lang, step app.WizardStep) string {
 	return strings.Replace(text(l, wizardStep), "%s", strconv.Itoa(int(step)+1), 1)

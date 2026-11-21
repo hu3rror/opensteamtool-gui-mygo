@@ -103,9 +103,6 @@ func (s *session) detectSteam() {
 
 func (s *session) setLanguage(language app.Language) {
 	s.writeConfig(func(cfg *config.Config) { cfg.Language = language })
-	if s.retitle != nil {
-		s.retitle(view.Title(language.Resolve(s.factsWithoutGate().Locale)))
-	}
 }
 
 func (s *session) browseSteamPath() {

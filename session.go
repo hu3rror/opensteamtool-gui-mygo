@@ -39,7 +39,6 @@ type session struct {
 
 	frame       func()
 	windowWidth func() float32
-	retitle     func(string)
 	retray      func()
 
 	visible func() bool
