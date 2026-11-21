@@ -19,6 +19,11 @@ import (
 //go:embed resources/icon.png
 var trayIcon []byte
 
+const (
+	minContentWidth  = 460
+	minContentHeight = 620
+)
+
 func locale() string {
 	langs := mygo.App.PreferredLanguages()
 	if len(langs) == 0 {
@@ -51,13 +56,11 @@ func main() {
 
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
-			Title:     view.Title(s.resolvedLanguage()),
-			Width:     480,
-			Height:    360,
-			MinWidth:  320,
-			MinHeight: 340,
-			StateKey:  "main",
-			Content:   ui.View(s.view),
+			Title:    view.Title(s.resolvedLanguage()),
+			Width:    480,
+			Height:   620,
+			StateKey: "main",
+			Content:  ui.View(s.view),
 		})
 		s.frame = win.Invalidate
 		s.windowWidth = func() float32 { return float32(win.ContentBounds().Width) }
@@ -75,6 +78,14 @@ func main() {
 			if !s.closeWindow() {
 				e.PreventDefault()
 			}
+		})
+		win.OnReadyToShow(func() {
+			bounds := win.ContentBounds()
+			if bounds.Width < minContentWidth || bounds.Height < minContentHeight {
+				win.SetContentSize(max(bounds.Width, minContentWidth), max(bounds.Height, minContentHeight))
+			}
+			width, height := win.Size()
+			win.SetMinimumSize(minContentWidth+width-bounds.Width, minContentHeight+height-bounds.Height)
 		})
 		mygo.App.OnSecondInstance(func([]string, string) { s.wake() })
 		s.notify = func(body string) {
