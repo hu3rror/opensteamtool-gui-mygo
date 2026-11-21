@@ -345,6 +345,59 @@ func TestTheSettingsTabsBecomeOneDropdownWhenTheWindowIsNarrow(t *testing.T) {
 	}
 }
 
+func TestEverySettingsPageFitsTheSmallestWindow(t *testing.T) {
+	const width, height = 460, 620
+	for _, locale := range []string{"zh-CN", "en-US"} {
+		for health := app.HealthChecking; health <= app.HealthNetworkUnavailable; health++ {
+			facts := app.Facts{
+				Locale:          locale,
+				SteamPathValid:  true,
+				SteamPath:       `C:\Program Files (x86)\Steam`,
+				Deployment:      app.Applied,
+				PatchDownloaded: true,
+				Health:          health,
+				OnlineVersion:   "1.2.3",
+				UpdateChecked:   true,
+				ToolVersion:     "0.2.1",
+				LuaRelative:     "config/lua",
+				LuaDir:          `C:\Program Files (x86)\Steam\config\lua`,
+				WindowWidth:     width,
+			}
+			closeLabel := "关闭"
+			if locale == "en-US" {
+				closeLabel = "Close"
+			}
+			mainScreen := map[string]bool{}
+			for _, text := range ui.NewTester((&screen{facts: facts}).view, width, height).Texts() {
+				mainScreen[text] = true
+			}
+
+			for _, tab := range app.Tabs() {
+				s := &screen{facts: facts}
+				s.state.SettingsOpen = true
+				s.state.Tab = int(tab)
+				tt := ui.NewTester(s.view, width, height)
+				closeRow, ok := tt.Find(closeLabel)
+				if !ok {
+					t.Fatalf("%s tab %v shows no close button", locale, tab)
+				}
+				for _, text := range tt.Texts() {
+					row, ok := tt.Find(text)
+					if !ok || mainScreen[text] || text == closeLabel {
+						continue
+					}
+					if row.Y+row.H > closeRow.Y {
+						t.Errorf("%s health %v tab %v: %q ends at %.0f below the close button at %.0f, the smallest window clips it", locale, health, tab, text, row.Y+row.H, closeRow.Y)
+					}
+					if row.X+row.W > width {
+						t.Errorf("%s health %v tab %v: %q reaches %.0f past the %d wide window", locale, health, tab, text, row.X+row.W, width)
+					}
+				}
+			}
+		}
+	}
+}
+
 func TestTheGearOpensTheSettingsDialogWithTheFiveTabs(t *testing.T) {
 	s, tt := dialog(t)
 	if !s.state.SettingsOpen {
