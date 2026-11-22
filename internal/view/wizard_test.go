@@ -74,8 +74,8 @@ func TestEveryWizardStepNamesItselfAndSaysWhatItChanges(t *testing.T) {
 	}{
 		{app.WizardLanguage, "界面语言", "影响窗口、对话框和托盘菜单里的全部文字。"},
 		{app.WizardTheme, "主题", "影响整个窗口的配色。"},
-		{app.WizardPath, "Steam 路径", "补丁会部署到这个 Steam 安装目录。"},
-		{app.WizardDownload, "下载补丁", "获取与当前版本匹配的补丁文件。"},
+		{app.WizardPath, "Steam 路径", "补丁部署到此处"},
+		{app.WizardDownload, "下载补丁", "获取匹配当前版本的补丁"},
 	}
 	for _, test := range tests {
 		facts := openWizard(app.Facts{SteamPathValid: true, PatchDownloaded: true})
@@ -314,7 +314,7 @@ func TestTheWizardDownloadStepTakesItsShapeFromTheLocalFiles(t *testing.T) {
 		{
 			name:    "not downloaded",
 			shape:   app.WizardNotDownloaded,
-			texts:   []string{"补丁尚未下载。点击下方按钮开始下载并解压（可选跳过）。"},
+			texts:   []string{"补丁未下载"},
 			buttons: []string{"下载并解压", "跳过"},
 			absent:  []string{"完成", "重试"},
 		},

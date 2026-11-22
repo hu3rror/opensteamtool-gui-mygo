@@ -59,7 +59,7 @@ const (
 	luaPathRow               key = "完整路径"
 	luaManifestReady         key = "manifest.lua 已就位"
 	luaManifestMissing       key = "尚无 manifest.lua（可选）"
-	luaHint                  key = "补丁从此目录加载 .lua 脚本，改动即时生效。"
+	luaHint                  key = "补丁从本目录加载 .lua 脚本；改动立即生效"
 	tabAbout                 key = "关于"
 	languageRow              key = "语言"
 	followSystem             key = "跟随系统"
@@ -77,9 +77,9 @@ const (
 	toolAvailable            key = "发现新版本 %s"
 	openDownloadPage         key = "打开下载页"
 	runWizard                key = "重新运行向导"
-	runWizardHint            key = "以当前语言、主题与 Steam 路径为初值重新运行设置向导。"
+	runWizardHint            key = "沿用当前语言、主题与路径"
 	steamPathRow             key = "Steam 安装路径"
-	steamPathHint            key = "选择 steam.exe 所在的文件夹"
+	steamPathHint            key = "含 steam.exe 的目录"
 	steamPathError           key = "目录不存在或无法读取"
 	browse                   key = "浏览…"
 	closeButton              key = "关闭"
@@ -129,11 +129,11 @@ const (
 	cachingSignatures        key = "正在缓存..."
 	cacheReady               key = "缓存已就绪"
 	cacheFailed              key = "缓存预热失败：%s"
-	compatTipUpdated         key = "Steam 版本已更新，上游尚未发布适配签名，请等待更新。"
-	compatTipCached          key = "核心特征码与 IPC 规约已全部就绪并离线缓存。"
-	compatTipAdapted         key = "上游已适配，可一键预热离线缓存。"
-	compatTipMissing         key = "未找到核心 DLL（steamclient64.dll / steamui.dll）。"
-	compatTipOffline         key = "网络不可用，体检结果未知；已缓存项仍可离线使用。"
+	compatTipUpdated         key = "Steam 已更新，尚无适配签名"
+	compatTipCached          key = "特征码与 IPC 已缓存，可离线运行"
+	compatTipAdapted         key = "上游已适配，可缓存离线"
+	compatTipMissing         key = "未找到 steamclient64.dll 或 steamui.dll"
+	compatTipOffline         key = "网络不可用，结果未知。已缓存项可离线使用。"
 	riskNotAdapted           key = "当前 Steam 尚未适配"
 	riskMissingCore          key = "未找到 Steam 核心文件"
 	riskSettings             key = "设置 →"
@@ -146,13 +146,11 @@ const (
 	wizardStepDownload       key = "下载补丁"
 	wizardHintLanguage       key = "影响窗口、对话框和托盘菜单里的全部文字。"
 	wizardHintTheme          key = "影响整个窗口的配色。"
-	wizardHintPath           key = "补丁会部署到这个 Steam 安装目录。"
-	wizardHintDownload       key = "获取与当前版本匹配的补丁文件。"
-	wizardPathPrompt         key = "请确认 Steam 安装路径："
+	wizardHintPath           key = "补丁部署到此处"
+	wizardHintDownload       key = "获取匹配当前版本的补丁"
 	wizardPathError          key = "路径无效：请选择有效的 Steam 安装目录"
 	nextStep                 key = "下一步"
 	backStep                 key = "上一步"
-	wizardNotDownloaded      key = "补丁尚未下载。点击下方按钮开始下载并解压（可选跳过）。"
 	wizardDownloaded         key = "补丁已下载，无需再下载。"
 	wizardDownloading        key = "正在下载并解压补丁..."
 	wizardDownloadFailed     key = "补丁下载失败：%s"
@@ -172,7 +170,7 @@ var copyTable = map[key]string{
 	stoppingSteam:            "Closing Steam…",
 	invalidPath:              "Steam path is invalid",
 	invalidPathHint:          "Set a valid Steam installation path in settings",
-	patchNotDownloaded:       "Patch not downloaded",
+	patchNotDownloaded:       "The patch is not downloaded.",
 	downloadHint:             "Click Check for patch updates to download a new version",
 	steamRunning:             "Steam is running",
 	steamStopped:             "Steam is not running",
@@ -224,9 +222,9 @@ var copyTable = map[key]string{
 	toolAvailable:            "Version %s is available",
 	openDownloadPage:         "Open the download page",
 	runWizard:                "Run the setup wizard again",
-	runWizardHint:            "Run the setup wizard again, starting from the current language, theme and Steam path",
+	runWizardHint:            "The wizard uses the current language, theme and path.",
 	steamPathRow:             "Steam installation path",
-	steamPathHint:            "Choose the folder that holds steam.exe",
+	steamPathHint:            "Folder with steam.exe",
 	steamPathError:           "The directory does not exist or cannot be read",
 	browse:                   "Browse…",
 	closeButton:              "Close",
@@ -244,7 +242,7 @@ var copyTable = map[key]string{
 	luaPathRow:               "Full path",
 	luaManifestReady:         "manifest.lua is in place",
 	luaManifestMissing:       "No manifest.lua yet (optional)",
-	luaHint:                  "The patch loads .lua scripts from this folder; edits apply without a restart.",
+	luaHint:                  "The patch loads .lua files from this folder. Changes apply immediately.",
 	openSteamToolLayoutLabel: "OpenSteamTool layout",
 	steamDaddyLayoutLabel:    "SteamDaddy layout",
 	entryRow:                 "Injection entry",
@@ -281,11 +279,11 @@ var copyTable = map[key]string{
 	cachingSignatures:        "Caching...",
 	cacheReady:               "Cache is ready",
 	cacheFailed:              "Caching failed: %s",
-	compatTipUpdated:         "Steam updated and upstream has not published an adaptation yet. Please wait.",
-	compatTipCached:          "The core signature and IPC contract are ready and cached offline.",
-	compatTipAdapted:         "Upstream has adapted. You can cache it for offline use in one click.",
-	compatTipMissing:         "Core DLLs not found (steamclient64.dll / steamui.dll).",
-	compatTipOffline:         "The network is unavailable, so the result is unknown. Cached items still work offline.",
+	compatTipUpdated:         "Steam updated. No adaptation yet.",
+	compatTipCached:          "The signature and IPC are in the cache. The component works offline.",
+	compatTipAdapted:         "Upstream adapted. You can cache it for offline use.",
+	compatTipMissing:         "steamclient64.dll or steamui.dll is missing.",
+	compatTipOffline:         "The network is unavailable. The result is unknown. Cached items still work offline.",
 	riskNotAdapted:           "The current Steam build is not supported yet",
 	riskMissingCore:          "Steam core files not found",
 	riskSettings:             "Settings →",
@@ -298,13 +296,11 @@ var copyTable = map[key]string{
 	wizardStepDownload:       "Download the patch",
 	wizardHintLanguage:       "Changes every word in the window, the dialogs and the tray menu.",
 	wizardHintTheme:          "Changes the colors of the whole window.",
-	wizardHintPath:           "The patch is deployed into this Steam installation folder.",
-	wizardHintDownload:       "Fetches the patch that matches this version.",
-	wizardPathPrompt:         "Confirm the Steam installation path:",
+	wizardHintPath:           "The app deploys the patch here.",
+	wizardHintDownload:       "The app downloads the patch that matches this version.",
 	wizardPathError:          "Invalid path: choose a valid Steam installation folder",
 	nextStep:                 "Next",
 	backStep:                 "Back",
-	wizardNotDownloaded:      "The patch is not downloaded yet. Use the button below to download and extract it, or skip.",
 	wizardDownloaded:         "The patch is already downloaded.",
 	wizardDownloading:        "Downloading and extracting the patch...",
 	wizardDownloadFailed:     "Patch download failed: %s",

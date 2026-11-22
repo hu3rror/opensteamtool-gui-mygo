@@ -240,7 +240,7 @@ func wizardBack(c *ui.Context, v app.View, a Actions) {
 
 func wizardPath(c *ui.Context, v app.View, st *State, a Actions) {
 	breeze.Card(c, func() {
-		pathRow(c, v, st, a, text(v.Lang, wizardPathPrompt), wizardPathError, "")
+		pathRow(c, v, st, a, text(v.Lang, steamPathRow), wizardPathError, "")
 	})
 	sourceChoices(c, v, st)
 }
@@ -265,7 +265,9 @@ func sourceChoices(c *ui.Context, v app.View, st *State) {
 	})
 	t := c.Theme()
 	if st.SourceChoice == source.KeyOfficial {
-		breeze.Text(c, text(v.Lang, officialStale)).TextColor(t.Warning)
+		outsideCard(c, 0, func() {
+			breeze.Text(c, text(v.Lang, officialStale)).TextColor(t.Warning)
+		})
 	}
 	if st.SourceChoice != CustomChoice {
 		return
@@ -288,16 +290,18 @@ func sourceChoices(c *ui.Context, v app.View, st *State) {
 func downloadShape(c *ui.Context, v app.View) {
 	t := c.Theme()
 	w := v.Wizard
-	switch w.Download {
-	case app.WizardNotDownloaded:
-		breeze.Text(c, text(v.Lang, wizardNotDownloaded))
-	case app.WizardDownloaded:
-		breeze.Text(c, text(v.Lang, wizardDownloaded))
-	case app.WizardDownloading:
-		breeze.Text(c, text(v.Lang, wizardDownloading))
-	case app.WizardDownloadFailed:
-		breeze.Text(c, WizardDownloadFailure(v.Lang, w.Failure)).Role(ui.RoleStatus).TextColor(t.Warning)
-	}
+	outsideCard(c, 0, func() {
+		switch w.Download {
+		case app.WizardNotDownloaded:
+			breeze.Text(c, text(v.Lang, patchNotDownloaded))
+		case app.WizardDownloaded:
+			breeze.Text(c, text(v.Lang, wizardDownloaded))
+		case app.WizardDownloading:
+			breeze.Text(c, text(v.Lang, wizardDownloading))
+		case app.WizardDownloadFailed:
+			breeze.Text(c, WizardDownloadFailure(v.Lang, w.Failure)).Role(ui.RoleStatus).TextColor(t.Warning)
+		}
+	})
 }
 
 func mainScreen(c *ui.Context, v app.View, st *State, a Actions) {
@@ -343,30 +347,31 @@ func riskLine(c *ui.Context, v app.View, st *State) {
 
 func compatibilitySection(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
-	ui.Column(c).Gap(t.Space(2)).Children(func() {
-		breeze.Text(c, text(v.Lang, compatSection), breeze.TextHeading)
-		ui.Row(c).Gap(t.Space(2)).Children(func() {
-			breeze.Badge(c, HealthLabel(v.Lang, v.Health))
-			if prewarmOffered(v) {
-				ui.Row(c).Children(func() {
+	ui.Column(c).Gap(t.Space(2)).Margin(t.Space(3), 0, 0, 0).Children(func() {
+		outsideCard(c, 0, func() {
+			breeze.Text(c, text(v.Lang, compatSection))
+			ui.Row(c).Gap(t.Space(2)).Children(func() {
+				breeze.Badge(c, HealthLabel(v.Lang, v.Health))
+				if prewarmOffered(v) {
 					if breeze.Button(c, text(v.Lang, prewarmOffline)).Clicked() {
 						a.Prewarm()
 					}
-				})
-			}
+				}
+				ui.Spacer(c)
+			})
 			if tip, ok := HealthTip(v.Lang, v.Health); ok {
 				breeze.Text(c, tip).TextColor(t.TextMuted)
 			}
+			switch {
+			case v.Prewarming:
+				breeze.Text(c, text(v.Lang, cachingSignatures)).Role(ui.RoleStatus)
+			case v.PrecacheReady:
+				breeze.Text(c, text(v.Lang, cacheReady)).Role(ui.RoleStatus)
+			}
+			if v.PrecacheFailure != app.NoResult {
+				breeze.Text(c, CacheFailure(v.Lang, v.PrecacheFailure)).TextColor(t.Danger)
+			}
 		})
-		switch {
-		case v.Prewarming:
-			breeze.Text(c, text(v.Lang, cachingSignatures)).Role(ui.RoleStatus)
-		case v.PrecacheReady:
-			breeze.Text(c, text(v.Lang, cacheReady)).Role(ui.RoleStatus)
-		}
-		if v.PrecacheFailure != app.NoResult {
-			breeze.Text(c, CacheFailure(v.Lang, v.PrecacheFailure)).TextColor(t.Danger)
-		}
 		breeze.Collapsible(c, text(v.Lang, compatDetails), &st.CompatDetails, func() {
 			compatibilityDetails(c, v, a)
 		})
@@ -524,7 +529,11 @@ func changeTab(st *State, a Actions) {
 func settingsDialog(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
 	panel := func() {
-		ui.Column(c).Grow(1).MaxWidth(380).Gap(t.Space(3)).Children(func() {
+		column := ui.Column(c).Grow(1).MaxWidth(380).Gap(t.Space(3))
+		if v.WindowWidth > 0 {
+			column.Width(min(380, v.WindowWidth-40))
+		}
+		column.Children(func() {
 			breeze.Text(c, text(v.Lang, settings), breeze.TextTitle)
 			labels := tabLabels(v.Lang)
 			if v.WindowWidth > 0 && v.WindowWidth < tabsWidth {
@@ -665,36 +674,44 @@ func steamPage(c *ui.Context, v app.View, st *State, a Actions) {
 		pathRow(c, v, st, a, text(v.Lang, steamPathRow), steamPathError, text(v.Lang, steamPathHint))
 	})
 	entryControl(c, v, st, a)
-	breeze.Text(c, text(v.Lang, steamCfgNote)).TextColor(t.TextMuted)
+	outsideCard(c, 2, func() {
+		breeze.Text(c, text(v.Lang, steamCfgNote)).TextColor(t.TextMuted)
+	})
 	compatibilitySection(c, v, st, a)
 }
 
+func outsideCard(c *ui.Context, top float32, fn func()) {
+	t := c.Theme()
+	ui.Column(c).PaddingStart(t.Space(4)).Margin(t.Space(top), 0, 0, 0).Children(fn)
+}
 func luaPage(c *ui.Context, v app.View, a Actions) {
 	t := c.Theme()
-	ui.Column(c).Gap(t.Space(2)).Children(func() {
-		if v.LuaDir == "" {
+	if v.LuaDir == "" {
+		outsideCard(c, 0, func() {
 			breeze.Text(c, text(v.Lang, pathUnset)).TextColor(t.TextMuted)
-			return
-		}
-		breeze.Card(c, func() {
-			breeze.ActionRow(c, text(v.Lang, luaLayoutRow), "", func() {
-				breeze.Text(c, v.LuaRelative)
-			})
-			breeze.ActionRow(c, text(v.Lang, luaPathRow), "", func() {
-				breeze.Text(c, v.LuaDir)
-			})
 		})
+		return
+	}
+	breeze.Card(c, func() {
+		breeze.ActionRow(c, text(v.Lang, luaLayoutRow), "", func() {
+			breeze.Text(c, v.LuaRelative)
+		})
+		breeze.ActionRow(c, text(v.Lang, luaPathRow), "", func() {
+			breeze.Text(c, v.LuaDir)
+		})
+	})
+	outsideCard(c, 2, func() {
 		if v.LuaManifest {
 			breeze.Text(c, text(v.Lang, luaManifestReady))
 		} else {
 			breeze.Text(c, text(v.Lang, luaManifestMissing)).TextColor(t.TextMuted)
 		}
 		breeze.Text(c, text(v.Lang, luaHint)).TextColor(t.TextMuted)
-		breeze.ActionRow(c, text(v.Lang, openLuaFolder), "", func() {
-			if breeze.Button(c, text(v.Lang, openLuaFolder)).Clicked() {
-				a.OpenLua()
-			}
-		})
+	})
+	breeze.ActionRow(c, text(v.Lang, openLuaFolder), "", func() {
+		if breeze.Button(c, text(v.Lang, openLuaFolder)).Clicked() {
+			a.OpenLua()
+		}
 	})
 }
 
@@ -742,16 +759,16 @@ func ChoiceOf(s source.Source) string {
 }
 
 func patchSourcePage(c *ui.Context, v app.View, st *State, a Actions) {
-	t := c.Theme()
-	ui.Column(c).Gap(t.Space(2)).Children(func() {
-		sourceChoices(c, v, st)
-		draft := st.Draft()
-		if _, err := draft.Resolve(); err == nil && !draft.Same(st.Source) {
-			if breeze.Button(c, text(v.Lang, applyAndDownload)).Clicked() {
-				if chosen, ok := a.ApplySource(draft); ok {
-					st.SetSource(chosen)
-					st.Entry = source.Effective(chosen, st.Entry)
-				}
+	sourceChoices(c, v, st)
+	draft := st.Draft()
+	if _, err := draft.Resolve(); err != nil || draft.Same(st.Source) {
+		return
+	}
+	outsideCard(c, 3, func() {
+		if breeze.Button(c, text(v.Lang, applyAndDownload)).Clicked() {
+			if chosen, ok := a.ApplySource(draft); ok {
+				st.SetSource(chosen)
+				st.Entry = source.Effective(chosen, st.Entry)
 			}
 		}
 	})
@@ -762,7 +779,9 @@ func entryControl(c *ui.Context, v app.View, st *State, a Actions) {
 	if !src.Layout.Has(source.EntryEarly) {
 		return
 	}
-	breeze.Text(c, text(v.Lang, entryRow))
+	outsideCard(c, 3, func() {
+		breeze.Text(c, text(v.Lang, entryRow))
+	})
 	breeze.Card(c, func() {
 		breeze.RadioGroup(c, func() {
 			for _, entry := range []source.Entry{source.EntryDefault, source.EntryEarly} {

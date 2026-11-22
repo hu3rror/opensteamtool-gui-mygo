@@ -192,7 +192,7 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 		{
 			name:  "english patch not downloaded",
 			facts: app.Facts{Language: app.LanguageEnglish, SteamPathValid: true},
-			texts: []string{"Not applied", "Steam is not running", "Settings", "Apply patch and start Steam", "Check for patch updates", "Patch not downloaded", "Click Check for patch updates to download a new version"},
+			texts: []string{"Not applied", "Steam is not running", "Settings", "Apply patch and start Steam", "Check for patch updates", "The patch is not downloaded.", "Click Check for patch updates to download a new version"},
 		},
 	}
 	for _, test := range tests {
@@ -1031,7 +1031,7 @@ func compatDialog(t *testing.T) (*screen, *ui.Tester) {
 		CommitPath:  func(string) bool { return true },
 		Browse:      func() {},
 	}
-	tt := ui.NewTester(s.view, 480, 720)
+	tt := ui.NewTester(s.view, 480, 700)
 	if err := tt.Click("设置"); err != nil {
 		t.Fatalf("click the gear: %v", err)
 	}
@@ -1053,7 +1053,7 @@ func TestTheCompatibilitySectionShowsTheHealthAndTheComponents(t *testing.T) {
 	if err := tt.Click("Steam 设置"); err != nil {
 		t.Fatalf("open the Steam tab: %v", err)
 	}
-	for _, want := range []string{"Steam 核心兼容性", "上游已适配 (未缓存)", "上游已适配，可一键预热离线缓存。", "详细信息"} {
+	for _, want := range []string{"Steam 核心兼容性", "上游已适配 (未缓存)", "上游已适配，可缓存离线", "详细信息"} {
 		if !tt.HasText(want) {
 			t.Fatalf("texts %q without %q", tt.Texts(), want)
 		}
@@ -1142,12 +1142,46 @@ func TestTheDetailsOfferTheCacheForAnUncachedComponent(t *testing.T) {
 		t.Fatalf("expand the details: %v", err)
 	}
 	tt.Advance(500 * time.Millisecond)
+	tt.Scroll(240, 560, 0, 200)
+	tt.Frame()
 	if err := tt.Click("一键缓存签名"); err != nil {
 		t.Fatalf("click the cache action: %v", err)
 	}
 	if ran != 1 {
 		t.Errorf("the prewarm ran %d times, want the details action", ran)
 	}
+}
+
+func TestTheSteamPathRowGivesTheFieldTheRoomAndEndsAtTheCardEdge(t *testing.T) {
+	s, tt := compatDialog(t)
+	s.facts = app.Facts{Locale: "zh-CN", SteamPathValid: true}
+	tt.Frame()
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatalf("open the Steam tab: %v", err)
+	}
+	card := bounds(t, tt, ui.RoleGroup, "Steam 安装路径")
+	field := bounds(t, tt, ui.RoleTextField, "Steam 安装路径")
+	browse := bounds(t, tt, ui.RoleButton, "浏览…")
+	detect := bounds(t, tt, ui.RoleButton, "自动检测")
+	const cardPadding, rowGap = 16, 8
+	if gap := field.X - (card.X + cardPadding); gap < 0 || gap > 1 {
+		t.Errorf("the field starts %.1f past the card's text edge, want the card's edge", gap)
+	}
+	if gap := browse.X - (field.X + field.W); gap < rowGap || gap > rowGap+1 {
+		t.Errorf("the field ends %.1f before the buttons, want the row's gap of %d", gap, rowGap)
+	}
+	if gap := card.X + card.W - cardPadding - (detect.X + detect.W); gap < 0 || gap > 1 {
+		t.Errorf("the buttons end %.1f before the card's edge, want it", gap)
+	}
+}
+
+func bounds(t *testing.T, tt *ui.Tester, role ui.Role, name string) ui.Rect {
+	t.Helper()
+	target, ok := tt.AccessByRole(role, name)
+	if !ok || target.Bounds.W == 0 {
+		t.Fatalf("no %v named %q", role, name)
+	}
+	return target.Bounds
 }
 
 func TestAToolCheckNeverDisablesThePatchButtons(t *testing.T) {

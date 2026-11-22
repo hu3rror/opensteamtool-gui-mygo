@@ -119,7 +119,7 @@ func TestTheAboutTabRerunsTheWizard(t *testing.T) {
 	if *opened != 1 {
 		t.Errorf("the rerun ran %d times, want once", *opened)
 	}
-	if got := tt.Texts(); !slices.Contains(got, "以当前语言、主题与 Steam 路径为初值重新运行设置向导。") {
+	if got := tt.Texts(); !slices.Contains(got, "沿用当前语言、主题与路径") {
 		t.Errorf("texts = %q, want what the rerun starts from", got)
 	}
 }
