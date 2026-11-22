@@ -348,7 +348,7 @@ func riskLine(c *ui.Context, v app.View, st *State) {
 func compatibilitySection(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
 	ui.Column(c).Gap(t.Space(2)).Margin(t.Space(3), 0, 0, 0).Children(func() {
-		outsideCard(c, 0, func() {
+		breeze.Card(c, func() {
 			tip, _ := HealthTip(v.Lang, v.Health)
 			noteWithInfo(c, func() { breeze.Text(c, text(v.Lang, compatSection)) }, tip)
 			ui.Row(c).Gap(t.Space(2)).Children(func() {
@@ -395,12 +395,15 @@ func compatibilityDetails(c *ui.Context, v app.View, a Actions) {
 	t := c.Theme()
 	ui.Column(c).Gap(t.Space(2)).Children(func() {
 		for _, component := range v.Components {
-			ui.Row(c).Gap(t.Space(2)).Children(func() {
-				breeze.Text(c, ComponentLabel(v.Lang, component))
+			ui.Column(c).Gap(t.Space(1)).Children(func() {
+				ui.Row(c).Gap(t.Space(2)).Children(func() {
+					breeze.Text(c, ComponentLabel(v.Lang, component))
+					ui.Spacer(c)
+					breeze.Badge(c, HealthLabel(v.Lang, component.Health))
+				})
 				if component.Fingerprint != "" {
 					breeze.Text(c, component.Fingerprint).TextColor(t.TextMuted)
 				}
-				breeze.Badge(c, HealthLabel(v.Lang, component.Health))
 			})
 		}
 		if prewarmOffered(v) {
@@ -798,10 +801,10 @@ func entryControl(c *ui.Context, v app.View, st *State, a Actions) {
 	if !src.Layout.Has(source.EntryEarly) {
 		return
 	}
-	outsideCard(c, 3, func() {
-		noteWithInfo(c, func() { breeze.Text(c, text(v.Lang, entryRow)) }, text(v.Lang, entryChoiceHint))
-	})
 	breeze.Card(c, func() {
+		ui.Column(c).PaddingStart(c.Theme().Space(4)).Children(func() {
+			noteWithInfo(c, func() { breeze.Text(c, text(v.Lang, entryRow)) }, text(v.Lang, entryChoiceHint))
+		})
 		breeze.RadioGroup(c, func() {
 			for _, entry := range []source.Entry{source.EntryDefault, source.EntryEarly} {
 				row := breeze.RadioRow(c, &st.Entry, entry, text(v.Lang, entryLabels[entry]), "", nil)

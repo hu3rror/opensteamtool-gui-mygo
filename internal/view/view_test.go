@@ -1244,6 +1244,76 @@ func TestEachInfoIconTellsItsNoteOnHover(t *testing.T) {
 	}
 }
 
+func TestTheSectionHeadingsSitInsideTheirCards(t *testing.T) {
+	s := &screen{facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, Health: app.HealthCompatibleCached}}
+	s.actions = view.Actions{
+		SetLanguage: func(app.Language) {},
+		CommitPath:  func(string) bool { return true },
+		Browse:      func() {},
+		Detect:      func() {},
+		Prewarm:     func() {},
+	}
+	tt := ui.NewTester(s.view, 460, 700)
+	if err := tt.Click("设置"); err != nil {
+		t.Fatalf("click the gear: %v", err)
+	}
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatalf("open the Steam tab: %v", err)
+	}
+	for _, name := range []string{"注入入口", "Steam 核心兼容性"} {
+		heading := bounds(t, tt, ui.RoleText, name)
+		if gap := heading.X - 57; gap < -1 || gap > 1 {
+			t.Errorf("%q starts at %v, want the card's text edge at 57", name, heading.X)
+		}
+	}
+}
+
+func TestTheCompatibilityDetailsKeepTheirRowsInsideTheCard(t *testing.T) {
+	s := &screen{facts: app.Facts{
+		Locale:         "zh-CN",
+		SteamPathValid: true,
+		Health:         app.HealthCompatibleCached,
+		Components: []app.Component{
+			{DLL: "steamclient64.dll", Kind: "特征码", Fingerprint: "0123456789ab", Health: app.HealthCompatibleCached},
+			{DLL: "steamclient64.dll", Kind: "IPC", Health: app.HealthCompatibleCached},
+		},
+	}}
+	s.actions = view.Actions{
+		SetLanguage: func(app.Language) {},
+		CommitPath:  func(string) bool { return true },
+		Browse:      func() {},
+		Detect:      func() {},
+		Prewarm:     func() {},
+	}
+	tt := ui.NewTester(s.view, 460, 700)
+	if err := tt.Click("设置"); err != nil {
+		t.Fatalf("click the gear: %v", err)
+	}
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatalf("open the Steam tab: %v", err)
+	}
+	if err := tt.Click("详细信息"); err != nil {
+		t.Fatalf("expand the details: %v", err)
+	}
+	tt.Advance(900 * time.Millisecond)
+	tt.Frame()
+	header, ok := tt.Find("详细信息")
+	if !ok {
+		t.Fatal("the details header is missing")
+	}
+	const panelEdge = 420
+	for _, text := range tt.Texts() {
+		if r, ok := tt.Find(text); ok && r.X >= 40 && r.Y >= header.Y+header.H && r.X+r.W > panelEdge {
+			t.Errorf("%q at %v runs past the dialog's edge %v", text, r, panelEdge)
+		}
+	}
+	label := bounds(t, tt, ui.RoleText, "steamclient64.dll（特征码）")
+	fingerprint := bounds(t, tt, ui.RoleText, "0123456789ab")
+	if fingerprint.Y <= label.Y+label.H {
+		t.Errorf("the fingerprint sits on the label's line at y=%v, want its own line below the label's %v", fingerprint.Y, label.Y+label.H)
+	}
+}
+
 func TestTheSteamCfgNoteAppearsOnlyWithTheFile(t *testing.T) {
 	note := "steam.cfg 已锁定 Steam 客户端自动更新"
 	for _, present := range []bool{false, true} {
