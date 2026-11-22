@@ -96,6 +96,7 @@ const (
 	openSteamToolLayoutLabel key = "OpenSteamTool 布局"
 	steamDaddyLayoutLabel    key = "SteamDaddy 布局"
 	entryRow                 key = "注入入口"
+	entryChoiceHint          key = "默认入口：布局 A 用 dwmapi.dll，布局 B 用 version.dll。\n早期隔离入口：布局 A 的 version.dll，默认不启用。"
 	entryDefault             key = "默认"
 	entryEarly               key = "早期隔离"
 	applyAndDownload         key = "应用并下载"
@@ -246,6 +247,7 @@ var copyTable = map[key]string{
 	openSteamToolLayoutLabel: "OpenSteamTool layout",
 	steamDaddyLayoutLabel:    "SteamDaddy layout",
 	entryRow:                 "Injection entry",
+	entryChoiceHint:          "Default entry: layout A uses dwmapi.dll, layout B uses version.dll.\nEarly isolation entry: layout A's version.dll, disabled by default.",
 	entryDefault:             "Default",
 	entryEarly:               "Early isolation",
 	applyAndDownload:         "Apply and download",
@@ -486,6 +488,14 @@ func HealthTip(l app.Lang, health app.Health) (string, bool) {
 		return "", false
 	}
 	return text(l, tip), true
+}
+
+func LuaNote(l app.Lang, manifest bool) string {
+	state := luaManifestMissing
+	if manifest {
+		state = luaManifestReady
+	}
+	return text(l, state) + "\n" + text(l, luaHint)
 }
 
 func RiskLabel(l app.Lang, health app.Health) (string, bool) {

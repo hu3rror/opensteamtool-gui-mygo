@@ -368,6 +368,22 @@ func TestTheLuaTabHasNoFolderWithoutAValidSteamPath(t *testing.T) {
 	}
 }
 
+func TestTheSteamCfgFactFollowsTheFile(t *testing.T) {
+	for _, present := range []bool{false, true} {
+		root := t.TempDir()
+		files := map[string]bool{}
+		if present {
+			files[filepath.Join(root, "steam.cfg")] = true
+		}
+		host := &rt.Fake{Dirs: map[string]bool{root: true}, Files: files}
+		s := newTestSession(t, host, root)
+
+		if got := s.snapshot().SteamCfg; got != present {
+			t.Fatalf("steam.cfg = %v, want %v", got, present)
+		}
+	}
+}
+
 func TestTheTrayMenuListsTheFourEntriesInOrder(t *testing.T) {
 	s := newTestSession(t, &rt.Fake{}, t.TempDir())
 	lang := s.resolvedLanguage()

@@ -1053,7 +1053,7 @@ func TestTheCompatibilitySectionShowsTheHealthAndTheComponents(t *testing.T) {
 	if err := tt.Click("Steam 设置"); err != nil {
 		t.Fatalf("open the Steam tab: %v", err)
 	}
-	for _, want := range []string{"Steam 核心兼容性", "上游已适配 (未缓存)", "上游已适配，可缓存离线", "详细信息"} {
+	for _, want := range []string{"Steam 核心兼容性", "上游已适配 (未缓存)", "详细信息"} {
 		if !tt.HasText(want) {
 			t.Fatalf("texts %q without %q", tt.Texts(), want)
 		}
@@ -1074,7 +1074,7 @@ func TestTheCompatibilitySectionShowsTheHealthAndTheComponents(t *testing.T) {
 
 func TestThePrewarmRunsFromTheBadgeAndFromTheDetails(t *testing.T) {
 	s, tt := compatDialog(t)
-	s.facts = app.Facts{Locale: "zh-CN", SteamPathValid: true, Health: app.HealthAdaptedNotCached}
+	s.facts = app.Facts{Locale: "zh-CN", SteamPathValid: true, SteamCfg: true, Health: app.HealthAdaptedNotCached}
 	ran := 0
 	s.actions.Prewarm = func() { ran++ }
 	tt.Frame()
@@ -1173,6 +1173,131 @@ func TestTheSteamPathRowGivesTheFieldTheRoomAndEndsAtTheCardEdge(t *testing.T) {
 	if gap := card.X + card.W - cardPadding - (detect.X + detect.W); gap < 0 || gap > 1 {
 		t.Errorf("the buttons end %.1f before the card's edge, want it", gap)
 	}
+}
+
+func TestThePathRowLinesTheFieldUpWithItsButtons(t *testing.T) {
+	s, tt := compatDialog(t)
+	s.facts = app.Facts{Locale: "zh-CN", SteamPathValid: true}
+	tt.Frame()
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatalf("open the Steam tab: %v", err)
+	}
+	field := bounds(t, tt, ui.RoleTextField, "Steam 安装路径")
+	for _, name := range []string{"浏览…", "自动检测"} {
+		button := bounds(t, tt, ui.RoleButton, name)
+		if gap := button.Y - field.Y; gap < -1 || gap > 1 {
+			t.Errorf("%q starts %.1f below the field, want the field's line", name, gap)
+		}
+		if gap := button.H - field.H; gap < -1 || gap > 1 {
+			t.Errorf("%q is %.1f taller than the field, want the field's height", name, gap)
+		}
+	}
+}
+
+func TestEachInfoIconTellsItsNoteOnHover(t *testing.T) {
+	s, tt := compatDialog(t)
+	s.facts = app.Facts{Locale: "zh-CN", SteamPathValid: true, SteamCfg: true, Health: app.HealthAdaptedNotCached}
+	tt.Frame()
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatalf("open the Steam tab: %v", err)
+	}
+	notes := []string{
+		"默认入口：布局 A 用 dwmapi.dll，布局 B 用 version.dll。\n早期隔离入口：布局 A 的 version.dll，默认不启用。",
+		"steam.cfg 已锁定 Steam 客户端自动更新",
+		"上游已适配，可缓存离线",
+	}
+	for _, note := range notes {
+		if tipShown(tt, note) {
+			t.Errorf("%q shows before the pointer rests on its icon", note)
+		}
+		icon := bounds(t, tt, ui.RoleImage, note)
+		tt.Move(icon.X+icon.W/2, icon.Y+icon.H/2)
+		tt.Advance(700 * time.Millisecond)
+		tt.Frame()
+		if !tipShown(tt, note) {
+			t.Errorf("the icon named %q shows no tip once the pointer rests", note)
+		}
+		tt.Move(2, 2)
+		tt.Advance(700 * time.Millisecond)
+		tt.Frame()
+	}
+	reached := map[string]bool{}
+	for range 40 {
+		tt.Key(0, ui.KeyTab)
+		tt.Frame()
+		for _, note := range notes {
+			if !tt.Focused(note) {
+				continue
+			}
+			reached[note] = true
+			tt.Advance(700 * time.Millisecond)
+			tt.Frame()
+			if !tipShown(tt, note) {
+				t.Errorf("the focused icon named %q shows no tip", note)
+			}
+		}
+	}
+	for _, note := range notes {
+		if !reached[note] {
+			t.Errorf("no tab stop reaches the icon named %q", note)
+		}
+	}
+}
+
+func TestTheSteamCfgNoteAppearsOnlyWithTheFile(t *testing.T) {
+	note := "steam.cfg 已锁定 Steam 客户端自动更新"
+	for _, present := range []bool{false, true} {
+		s, tt := compatDialog(t)
+		s.facts = app.Facts{Locale: "zh-CN", SteamPathValid: true, SteamCfg: present}
+		tt.Frame()
+		if err := tt.Click("Steam 设置"); err != nil {
+			t.Fatalf("open the Steam tab: %v", err)
+		}
+		if _, ok := tt.AccessByRole(ui.RoleImage, note); ok != present {
+			t.Errorf("the steam.cfg icon shows %v, want %v", ok, present)
+		}
+	}
+}
+
+func TestTheMainScreenFitsTheSmallestWindowInEnglish(t *testing.T) {
+	facts := app.Facts{
+		Locale:          "en-US",
+		SteamPathValid:  true,
+		PatchDownloaded: true,
+		SteamRunning:    true,
+		Busy:            app.BusyApplyPatch,
+		Health:          app.HealthOfflineReady,
+		UpdateChecked:   true,
+		OnlineVersion:   "1.2.3",
+	}
+	const width, height = 460, 700
+	tt := ui.NewTester((&screen{facts: facts}).view, width, height)
+	tt.Frame()
+	for _, text := range tt.Texts() {
+		r, ok := tt.Find(text)
+		if !ok {
+			continue
+		}
+		if r.X+r.W > width-2 || r.X < -0.5 || r.Y+r.H > height+0.5 || r.Y < -0.5 {
+			t.Errorf("%q at %v leaves the %dx%d window", text, r, width, height)
+		}
+	}
+	line := func(text string) float32 {
+		t.Helper()
+		if r, ok := tt.Find(text); ok {
+			return r.H
+		}
+		t.Fatalf("no %q", text)
+		return 0
+	}
+	if h := line("New patch found"); h > 20 {
+		t.Errorf("the conclusion wraps to %v, want one line: the row is too narrow for its items", h)
+	}
+}
+
+func tipShown(tt *ui.Tester, note string) bool {
+	_, ok := tt.AccessByRole(ui.RoleTooltip, note)
+	return ok
 }
 
 func bounds(t *testing.T, tt *ui.Tester, role ui.Role, name string) ui.Rect {

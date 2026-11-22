@@ -57,8 +57,8 @@ func main() {
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
 			Title:          view.Title(),
-			Width:          480,
-			Height:         620,
+			Width:          minContentWidth,
+			Height:         minContentHeight,
 			StateKey:       "main",
 			Content:        ui.View(s.view),
 			TitleBarStyle:  mygo.TitleBarHidden,

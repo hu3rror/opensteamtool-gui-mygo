@@ -42,6 +42,7 @@ func withConfig(facts app.Facts, cfg config.Config, host rt.Runtime, dir string)
 		facts.LuaRelative, facts.LuaDir = luaFolder(cfg)
 	}
 	facts.LuaManifest = facts.LuaDir != "" && host.IsFile(filepath.Join(facts.LuaDir, "manifest.lua"))
+	facts.SteamCfg = facts.SteamPathValid && host.IsFile(filepath.Join(cfg.SteamPath, "steam.cfg"))
 	facts.Deployment = app.NotApplied
 	if running, err := steam.Running(host, cfg.SteamPath); err == nil {
 		facts.SteamRunning = running

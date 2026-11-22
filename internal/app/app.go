@@ -241,6 +241,7 @@ type Facts struct {
 	LuaRelative     string
 	LuaDir          string
 	LuaManifest     bool
+	SteamCfg        bool
 	SteamRunning    bool
 	Deployment      Deployment
 	PatchDownloaded bool
@@ -273,6 +274,7 @@ type View struct {
 	LuaRelative     string
 	LuaDir          string
 	LuaManifest     bool
+	SteamCfg        bool
 	Wizard          WizardView
 	MainState       MainState
 	Explanation     Explanation
@@ -301,6 +303,7 @@ func Derive(f Facts) View {
 		LuaRelative:     f.LuaRelative,
 		LuaDir:          f.LuaDir,
 		LuaManifest:     f.LuaManifest,
+		SteamCfg:        f.SteamCfg,
 		Wizard:          wizardViewOf(f.Wizard, f.SteamPathValid),
 		MainState:       mainStateOf(f),
 		Conflict:        f.Conflict,

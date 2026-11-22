@@ -321,7 +321,7 @@ func mainScreen(c *ui.Context, v app.View, st *State, a Actions) {
 	secondaryRow(c, v, a)
 	updateSlot(c, v, a)
 	riskLine(c, v, st)
-	ui.Row(c).Gap(t.Space(4)).Children(func() {
+	ui.Row(c).Gap(t.Space(4)).Wrap().Children(func() {
 		breeze.Text(c, text(v.Lang, steamWord(v.Status.SteamRunning))).Role(ui.RoleStatus)
 		if stage, ok := app.Stage(v.Status.Busy); ok {
 			breeze.Text(c, text(v.Lang, mainStateKeys[stage])).Role(ui.RoleStatus)
@@ -349,7 +349,8 @@ func compatibilitySection(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
 	ui.Column(c).Gap(t.Space(2)).Margin(t.Space(3), 0, 0, 0).Children(func() {
 		outsideCard(c, 0, func() {
-			breeze.Text(c, text(v.Lang, compatSection))
+			tip, _ := HealthTip(v.Lang, v.Health)
+			noteWithInfo(c, func() { breeze.Text(c, text(v.Lang, compatSection)) }, tip)
 			ui.Row(c).Gap(t.Space(2)).Children(func() {
 				breeze.Badge(c, HealthLabel(v.Lang, v.Health))
 				if prewarmOffered(v) {
@@ -359,9 +360,6 @@ func compatibilitySection(c *ui.Context, v app.View, st *State, a Actions) {
 				}
 				ui.Spacer(c)
 			})
-			if tip, ok := HealthTip(v.Lang, v.Health); ok {
-				breeze.Text(c, tip).TextColor(t.TextMuted)
-			}
 			switch {
 			case v.Prewarming:
 				breeze.Text(c, text(v.Lang, cachingSignatures)).Role(ui.RoleStatus)
@@ -494,7 +492,7 @@ func updateSlot(c *ui.Context, v app.View, a Actions) {
 		progress = downloadingPatch
 	}
 	patchBusy := v.Status.Busy != app.Idle || v.UpdateInFlight != app.Idle
-	ui.Row(c).Gap(t.Space(4)).Children(func() {
+	ui.Row(c).Gap(t.Space(4)).Wrap().Children(func() {
 		if breeze.Button(c, text(v.Lang, checkUpdate)).Disabled(patchBusy).Clicked() {
 			a.CheckUpdate()
 		}
@@ -514,6 +512,28 @@ func updateSlot(c *ui.Context, v app.View, a Actions) {
 }
 
 const tabsWidth float32 = 420
+
+const infoSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <circle cx="8" cy="8" r="6.6" fill="none" stroke="currentColor" stroke-width="1.4"/>
+  <rect x="7.2" y="6.6" width="1.6" height="4.8" rx="0.8" fill="currentColor"/>
+  <circle cx="8" cy="4.5" r="1" fill="currentColor"/>
+</svg>`
+
+var infoIcon = ui.MustParseSVG([]byte(infoSVG))
+
+func infoTip(c *ui.Context, tip string) ui.Element {
+	return breeze.Tooltip(c, ui.Icon(c, infoIcon).Label(tip).Focusable(), tip)
+}
+
+func noteWithInfo(c *ui.Context, label func(), tip string) {
+	ui.Row(c).Gap(c.Theme().Space(2)).Children(func() {
+		label()
+		if tip == "" {
+			return
+		}
+		infoTip(c, tip)
+	})
+}
 
 func changeTab(st *State, a Actions) {
 	if st.PathFocused {
@@ -637,17 +657,35 @@ func generalPage(c *ui.Context, v app.View, st *State, a Actions) {
 }
 
 func pathRow(c *ui.Context, v app.View, st *State, a Actions, label string, errorText key, description string) {
+	t := c.Theme()
 	breeze.ActionRow(c, label, description, func() {
 		submitted := false
-		field := breeze.Field(c, "", func() {
-			input := breeze.TextInput(c, &st.PathDraft).
-				Label(label).
-				Bind(&st.PathHandle)
-			submitted = input.Submitted()
+		ui.Column(c).Grow(1).Gap(t.Space(1.5)).Children(func() {
+			ui.Row(c).Gap(t.Space(2)).Children(func() {
+				input := breeze.TextInput(c, &st.PathDraft).
+					Label(label).
+					Bind(&st.PathHandle)
+				submitted = input.Submitted()
+				if st.PathError {
+					input.Error(text(v.Lang, errorText))
+				}
+				if breeze.Button(c, text(v.Lang, browse)).Clicked() {
+					a.Browse()
+				}
+				if breeze.Button(c, text(v.Lang, autoDetect)).Clicked() {
+					a.Detect()
+				}
+				if v.SteamCfg {
+					infoTip(c, text(v.Lang, steamCfgNote))
+				}
+			})
+			if st.PathError {
+				breeze.Text(c, text(v.Lang, errorText)).TextColor(t.Danger)
+			}
+			if st.PathNotFound {
+				breeze.Text(c, text(v.Lang, steamNotFound)).TextColor(t.Warning)
+			}
 		})
-		if st.PathError {
-			field.Error(text(v.Lang, errorText))
-		}
 		if submitted {
 			st.commitPath(a)
 		}
@@ -656,27 +694,14 @@ func pathRow(c *ui.Context, v app.View, st *State, a Actions, label string, erro
 			st.commitPath(a)
 		}
 		st.PathFocused = focused
-		if st.PathNotFound {
-			breeze.Text(c, text(v.Lang, steamNotFound)).TextColor(c.Theme().Warning)
-		}
-		if breeze.Button(c, text(v.Lang, browse)).Clicked() {
-			a.Browse()
-		}
-		if breeze.Button(c, text(v.Lang, autoDetect)).Clicked() {
-			a.Detect()
-		}
 	})
 }
 
 func steamPage(c *ui.Context, v app.View, st *State, a Actions) {
-	t := c.Theme()
 	breeze.Card(c, func() {
 		pathRow(c, v, st, a, text(v.Lang, steamPathRow), steamPathError, text(v.Lang, steamPathHint))
 	})
 	entryControl(c, v, st, a)
-	outsideCard(c, 2, func() {
-		breeze.Text(c, text(v.Lang, steamCfgNote)).TextColor(t.TextMuted)
-	})
 	compatibilitySection(c, v, st, a)
 }
 
@@ -698,15 +723,9 @@ func luaPage(c *ui.Context, v app.View, a Actions) {
 		})
 		breeze.ActionRow(c, text(v.Lang, luaPathRow), "", func() {
 			breeze.Text(c, v.LuaDir)
+			ui.Spacer(c)
+			infoTip(c, LuaNote(v.Lang, v.LuaManifest))
 		})
-	})
-	outsideCard(c, 2, func() {
-		if v.LuaManifest {
-			breeze.Text(c, text(v.Lang, luaManifestReady))
-		} else {
-			breeze.Text(c, text(v.Lang, luaManifestMissing)).TextColor(t.TextMuted)
-		}
-		breeze.Text(c, text(v.Lang, luaHint)).TextColor(t.TextMuted)
 	})
 	breeze.ActionRow(c, text(v.Lang, openLuaFolder), "", func() {
 		if breeze.Button(c, text(v.Lang, openLuaFolder)).Clicked() {
@@ -780,7 +799,7 @@ func entryControl(c *ui.Context, v app.View, st *State, a Actions) {
 		return
 	}
 	outsideCard(c, 3, func() {
-		breeze.Text(c, text(v.Lang, entryRow))
+		noteWithInfo(c, func() { breeze.Text(c, text(v.Lang, entryRow)) }, text(v.Lang, entryChoiceHint))
 	})
 	breeze.Card(c, func() {
 		breeze.RadioGroup(c, func() {
