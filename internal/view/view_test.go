@@ -1158,6 +1158,15 @@ func TestAToolCheckNeverDisablesThePatchButtons(t *testing.T) {
 	}
 }
 
+func platformLook(t *testing.T, dark bool) *ui.Theme {
+	t.Helper()
+	var look *ui.Theme
+	ui.NewTester(func(c *ui.Context) {
+		look = breeze.ThemeOf(c, breeze.Current(), dark, ui.Color{})
+	}, 100, 100)
+	return look
+}
+
 type themeLook struct {
 	dark                                     bool
 	background, surface, text, accent, focus ui.Color
@@ -1203,5 +1212,29 @@ func TestTheViewDrawsInThePlatformTheme(t *testing.T) {
 	}
 	if got.focus.A != 255 {
 		t.Errorf("focus ring %v, want it opaque under the higher contrast setting", got.focus)
+	}
+}
+
+func TestTheWindowDrawsItsOwnTitleBarWhenTheSystemOneIsHidden(t *testing.T) {
+	for _, wizard := range []bool{false, true} {
+		s := &screen{facts: app.Facts{Locale: "zh-CN", ToolVersion: "0.2.2"}}
+		s.facts.Wizard.Open = wizard
+		tt := ui.NewTester(s.view, 480, 360)
+		if tt.HasText(view.Title()) {
+			t.Fatalf("wizard %v: texts %q, a window with a system title bar draws none of its own", wizard, tt.Texts())
+		}
+		tt.SetTitleBar(ui.TitleBar{Height: 48, Right: 138})
+		for _, want := range []string{view.Title(), "0.2.2"} {
+			if !tt.HasText(want) {
+				t.Errorf("wizard %v: texts %q, want %q in the title bar", wizard, tt.Texts(), want)
+			}
+		}
+		if bar, ok := tt.AccessByRole(ui.RoleGroup, view.Title()); !ok || bar.Bounds.H == 0 {
+			t.Fatalf("wizard %v: no title bar group named %q in %+v", wizard, view.Title(), tt.AccessAll())
+		}
+		tt.ClickAt(416, 20)
+		if s.state.SettingsOpen || tt.HasText("补丁源") {
+			t.Errorf("wizard %v: a press on the title bar reached the page", wizard)
+		}
 	}
 }

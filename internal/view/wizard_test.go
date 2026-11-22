@@ -111,7 +111,7 @@ func TestTheLanguageStepFollowsTheChosenLanguage(t *testing.T) {
 }
 
 func TestEachThemeCardKeepsItsFillClearOfItsOwnBackground(t *testing.T) {
-	light, dark := ui.LightTheme(), ui.DarkTheme()
+	light, dark := platformLook(t, false), platformLook(t, true)
 	fillTint := float32(0.16)
 	for _, windowDark := range []bool{false, true} {
 		facts := openWizard(app.Facts{})
@@ -183,7 +183,7 @@ func TestTheChosenThemeCardWearsTheAccent(t *testing.T) {
 	facts.Wizard.Step = app.WizardTheme
 	s, draw := wizardDrawing(t, facts, view.Actions{}, false)
 	tt := ui.NewTester(draw, 480, 360)
-	theme := ui.LightTheme()
+	theme := platformLook(t, false)
 	for _, chosen := range []struct {
 		card  string
 		theme app.Theme

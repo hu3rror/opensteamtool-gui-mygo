@@ -56,11 +56,13 @@ func main() {
 
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
-			Title:    view.Title(),
-			Width:    480,
-			Height:   620,
-			StateKey: "main",
-			Content:  ui.View(s.view),
+			Title:          view.Title(),
+			Width:          480,
+			Height:         620,
+			StateKey:       "main",
+			Content:        ui.View(s.view),
+			TitleBarStyle:  mygo.TitleBarHidden,
+			TitleBarHeight: 48,
 		})
 		s.frame = win.Invalidate
 		s.windowWidth = func() float32 { return float32(win.ContentBounds().Width) }
