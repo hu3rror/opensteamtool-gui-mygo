@@ -346,33 +346,40 @@ func riskLine(c *ui.Context, v app.View, st *State) {
 }
 
 func compatibilitySection(c *ui.Context, v app.View, st *State, a Actions) {
-	t := c.Theme()
-	ui.Column(c).Gap(t.Space(2)).Margin(t.Space(3), 0, 0, 0).Children(func() {
-		breeze.Card(c, func() {
-			tip, _ := HealthTip(v.Lang, v.Health)
-			noteWithInfo(c, func() { breeze.Text(c, text(v.Lang, compatSection)) }, tip)
-			ui.Row(c).Gap(t.Space(2)).Children(func() {
-				breeze.Badge(c, HealthLabel(v.Lang, v.Health))
-				if prewarmOffered(v) {
-					if breeze.Button(c, text(v.Lang, prewarmOffline)).Clicked() {
-						a.Prewarm()
-					}
-				}
-				ui.Spacer(c)
-			})
-			switch {
-			case v.Prewarming:
-				breeze.Text(c, text(v.Lang, cachingSignatures)).Role(ui.RoleStatus)
-			case v.PrecacheReady:
-				breeze.Text(c, text(v.Lang, cacheReady)).Role(ui.RoleStatus)
-			}
-			if v.PrecacheFailure != app.NoResult {
-				breeze.Text(c, CacheFailure(v.Lang, v.PrecacheFailure)).TextColor(t.Danger)
-			}
-		})
-		breeze.Collapsible(c, text(v.Lang, compatDetails), &st.CompatDetails, func() {
+	breeze.Card(c, func() {
+		compatHead(c, v, a)
+		breeze.ExpanderRow(c, text(v.Lang, compatDetails), "", &st.CompatDetails, func() {
 			compatibilityDetails(c, v, a)
 		})
+	})
+}
+
+func compatHead(c *ui.Context, v app.View, a Actions) {
+	t := c.Theme()
+	tip, _ := HealthTip(v.Lang, v.Health)
+	ui.Column(c).Padding(t.Space(4), t.Space(4), 0, t.Space(4)).Gap(t.Space(2)).Children(func() {
+		ui.Row(c).Gap(t.Space(2)).Children(func() {
+			noteWithInfo(c, func() { breeze.Text(c, text(v.Lang, compatSection)) }, tip)
+			ui.Spacer(c)
+			breeze.Badge(c, HealthLabel(v.Lang, v.Health))
+		})
+		ui.Row(c).Gap(t.Space(2)).Children(func() {
+			if prewarmOffered(v) {
+				if breeze.Button(c, text(v.Lang, prewarmOffline)).Clicked() {
+					a.Prewarm()
+				}
+			}
+			ui.Spacer(c)
+		})
+		switch {
+		case v.Prewarming:
+			breeze.Text(c, text(v.Lang, cachingSignatures)).Role(ui.RoleStatus)
+		case v.PrecacheReady:
+			breeze.Text(c, text(v.Lang, cacheReady)).Role(ui.RoleStatus)
+		}
+		if v.PrecacheFailure != app.NoResult {
+			breeze.Text(c, CacheFailure(v.Lang, v.PrecacheFailure)).TextColor(t.Danger)
+		}
 	})
 }
 
@@ -701,11 +708,13 @@ func pathRow(c *ui.Context, v app.View, st *State, a Actions, label string, erro
 }
 
 func steamPage(c *ui.Context, v app.View, st *State, a Actions) {
-	breeze.Card(c, func() {
-		pathRow(c, v, st, a, text(v.Lang, steamPathRow), steamPathError, text(v.Lang, steamPathHint))
+	ui.Column(c).Gap(c.Theme().Space(4)).Children(func() {
+		breeze.Card(c, func() {
+			pathRow(c, v, st, a, text(v.Lang, steamPathRow), steamPathError, text(v.Lang, steamPathHint))
+		})
+		entryControl(c, v, st, a)
+		compatibilitySection(c, v, st, a)
 	})
-	entryControl(c, v, st, a)
-	compatibilitySection(c, v, st, a)
 }
 
 func outsideCard(c *ui.Context, top float32, fn func()) {
@@ -720,20 +729,22 @@ func luaPage(c *ui.Context, v app.View, a Actions) {
 		})
 		return
 	}
-	breeze.Card(c, func() {
-		breeze.ActionRow(c, text(v.Lang, luaLayoutRow), "", func() {
-			breeze.Text(c, v.LuaRelative)
+	ui.Column(c).Gap(t.Space(4)).Children(func() {
+		breeze.Card(c, func() {
+			breeze.ActionRow(c, text(v.Lang, luaLayoutRow), "", func() {
+				breeze.Text(c, v.LuaRelative)
+			})
+			breeze.ActionRow(c, text(v.Lang, luaPathRow), "", func() {
+				breeze.Text(c, v.LuaDir)
+				ui.Spacer(c)
+				infoTip(c, LuaNote(v.Lang, v.LuaManifest))
+			})
 		})
-		breeze.ActionRow(c, text(v.Lang, luaPathRow), "", func() {
-			breeze.Text(c, v.LuaDir)
-			ui.Spacer(c)
-			infoTip(c, LuaNote(v.Lang, v.LuaManifest))
+		breeze.ActionRow(c, text(v.Lang, openLuaFolder), "", func() {
+			if breeze.Button(c, text(v.Lang, openLuaFolder)).Clicked() {
+				a.OpenLua()
+			}
 		})
-	})
-	breeze.ActionRow(c, text(v.Lang, openLuaFolder), "", func() {
-		if breeze.Button(c, text(v.Lang, openLuaFolder)).Clicked() {
-			a.OpenLua()
-		}
 	})
 }
 
@@ -802,7 +813,7 @@ func entryControl(c *ui.Context, v app.View, st *State, a Actions) {
 		return
 	}
 	breeze.Card(c, func() {
-		ui.Column(c).PaddingStart(c.Theme().Space(4)).Children(func() {
+		ui.Column(c).Padding(c.Theme().Space(4), c.Theme().Space(4), 0, c.Theme().Space(4)).Children(func() {
 			noteWithInfo(c, func() { breeze.Text(c, text(v.Lang, entryRow)) }, text(v.Lang, entryChoiceHint))
 		})
 		breeze.RadioGroup(c, func() {

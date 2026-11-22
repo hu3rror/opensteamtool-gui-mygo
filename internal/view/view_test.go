@@ -1,6 +1,7 @@
 package view_test
 
 import (
+	"image"
 	"slices"
 	"strings"
 	"testing"
@@ -1152,6 +1153,52 @@ func TestTheDetailsOfferTheCacheForAnUncachedComponent(t *testing.T) {
 	}
 }
 
+func TestTheSteamTabStacksItsCardsSixteenApart(t *testing.T) {
+	s, tt := compatDialog(t)
+	s.facts = app.Facts{Locale: "zh-CN", SteamPathValid: true, Health: app.HealthAdaptedNotCached}
+	tt.Frame()
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatalf("open the Steam tab: %v", err)
+	}
+	tt.Frame()
+	edges := cardBorderRows(t, tt, 45, 415, 120, 700)
+	if len(edges) != 6 {
+		t.Fatalf("card edges at %v, want the 6 of three cards", edges)
+	}
+	for i := 2; i < len(edges); i += 2 {
+		if reach := edges[i] - edges[i-1]; reach != 17 {
+			t.Errorf("the cards at %v sit %d apart, want 16 DIP and the stroke below", edges, reach)
+		}
+	}
+}
+
+func TestTheHealthRowAndTheDetailsShareOneCard(t *testing.T) {
+	s, tt := compatDialog(t)
+	s.facts = app.Facts{Locale: "zh-CN", SteamPathValid: true, Health: app.HealthAdaptedNotCached}
+	tt.Frame()
+	if err := tt.Click("Steam 设置"); err != nil {
+		t.Fatalf("open the Steam tab: %v", err)
+	}
+	tt.Frame()
+	heading := bounds(t, tt, ui.RoleText, "Steam 核心兼容性")
+	details, ok := tt.Find("详细信息")
+	if !ok {
+		t.Fatal("the details row is missing")
+	}
+	var edges []int
+	for _, y := range cardBorderRows(t, tt, 45, 415, 120, 700) {
+		if float32(y) > heading.Y-20 && float32(y) < details.Y+details.H+1 {
+			edges = append(edges, y)
+		}
+	}
+	if len(edges) != 2 {
+		t.Fatalf("card edges at %v around the health row and the details, want the 2 of one card", edges)
+	}
+	if float32(edges[0]) >= heading.Y || float32(edges[1]) < details.Y {
+		t.Errorf("the edges %v do not bracket the health row at %v and the details at %v", edges, heading.Y, details.Y)
+	}
+}
+
 func TestTheSteamPathRowGivesTheFieldTheRoomAndEndsAtTheCardEdge(t *testing.T) {
 	s, tt := compatDialog(t)
 	s.facts = app.Facts{Locale: "zh-CN", SteamPathValid: true}
@@ -1368,6 +1415,27 @@ func TestTheMainScreenFitsTheSmallestWindowInEnglish(t *testing.T) {
 func tipShown(tt *ui.Tester, note string) bool {
 	_, ok := tt.AccessByRole(ui.RoleTooltip, note)
 	return ok
+}
+
+// cardBorderRows returns the y of every row between top and bottom that a card's stroke covers across x0 to x1, in the light theme compatDialog draws.
+func cardBorderRows(t *testing.T, tt *ui.Tester, x0, x1, top, bottom int) []int {
+	t.Helper()
+	stroke := platformLook(t, false).Background.Mix(ui.Hex("#000000"), 0.059)
+	img := image.Image(tt.Image())
+	var rows []int
+	for y := top; y < bottom; y++ {
+		covered := 0
+		for x := x0; x < x1; x++ {
+			r, g, b, _ := img.At(x, y).RGBA()
+			if uint8(r>>8) == stroke.R && uint8(g>>8) == stroke.G && uint8(b>>8) == stroke.B {
+				covered++
+			}
+		}
+		if covered*10 > (x1-x0)*9 {
+			rows = append(rows, y)
+		}
+	}
+	return rows
 }
 
 func bounds(t *testing.T, tt *ui.Tester, role ui.Role, name string) ui.Rect {
