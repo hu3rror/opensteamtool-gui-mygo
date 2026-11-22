@@ -293,6 +293,24 @@ func TestTheExitConfirmationAsksBeforeEndingTheProcess(t *testing.T) {
 	}
 }
 
+func clickButton(t *testing.T, tt *ui.Tester, label string) {
+	t.Helper()
+	target, ok := tt.AccessByRole(ui.RoleButton, label)
+	if !ok || target.Bounds.W == 0 {
+		t.Fatalf("no button named %q", label)
+	}
+	tt.ClickAt(target.Bounds.X+target.Bounds.W/2, target.Bounds.Y+target.Bounds.H/2)
+}
+
+func clickField(t *testing.T, tt *ui.Tester, label string) {
+	t.Helper()
+	target, ok := tt.AccessByRole(ui.RoleTextField, label)
+	if !ok || target.Bounds.W == 0 {
+		t.Fatalf("no field named %q", label)
+	}
+	tt.ClickAt(target.Bounds.X+target.Bounds.W/2, target.Bounds.Y+target.Bounds.H/2)
+}
+
 func dialog(t *testing.T) (*screen, *ui.Tester) {
 	t.Helper()
 	s := &screen{facts: app.Facts{Locale: "zh-CN"}}
@@ -301,7 +319,7 @@ func dialog(t *testing.T) (*screen, *ui.Tester) {
 		CommitPath:  func(string) bool { return true },
 		Browse:      func() {},
 	}
-	tt := ui.NewTester(s.view, 480, 360)
+	tt := ui.NewTester(s.view, 480, 700)
 	if err := tt.Click("设置"); err != nil {
 		t.Fatalf("click the gear: %v", err)
 	}
@@ -347,7 +365,7 @@ func TestTheSettingsTabsBecomeOneDropdownWhenTheWindowIsNarrow(t *testing.T) {
 }
 
 func TestEverySettingsPageFitsTheSmallestWindow(t *testing.T) {
-	const width, height = 460, 620
+	const width, height = 460, 700
 	for _, locale := range []string{"zh-CN", "en-US"} {
 		for health := app.HealthChecking; health <= app.HealthNetworkUnavailable; health++ {
 			facts := app.Facts{
@@ -510,9 +528,7 @@ func TestTheSteamTabCommitsThePathOnEnter(t *testing.T) {
 	if err := tt.Click("Steam 设置"); err != nil {
 		t.Fatalf("open the Steam tab: %v", err)
 	}
-	if err := tt.Click("Steam 安装路径"); err != nil {
-		t.Fatalf("focus the path field: %v", err)
-	}
+	clickField(t, tt, "Steam 安装路径")
 	tt.Type(`D:\Steam`)
 	tt.Key(0, ui.KeyEnter)
 
@@ -531,9 +547,7 @@ func TestARejectedPathShowsTheInlineError(t *testing.T) {
 	if err := tt.Click("Steam 设置"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Steam 安装路径"); err != nil {
-		t.Fatal(err)
-	}
+	clickField(t, tt, "Steam 安装路径")
 	tt.Type(`D:\Nope`)
 	tt.Key(0, ui.KeyEnter)
 
@@ -555,9 +569,7 @@ func TestTheSteamTabCommitsWhenTheFieldLosesFocus(t *testing.T) {
 	if err := tt.Click("Steam 设置"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Steam 安装路径"); err != nil {
-		t.Fatal(err)
-	}
+	clickField(t, tt, "Steam 安装路径")
 	tt.Type(`D:\Steam`)
 	if err := tt.Click("浏览…"); err != nil {
 		t.Fatalf("click browse: %v", err)
@@ -578,9 +590,7 @@ func TestTheSteamTabCommitsBeforeTheTabChanges(t *testing.T) {
 	if err := tt.Click("Steam 设置"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Steam 安装路径"); err != nil {
-		t.Fatal(err)
-	}
+	clickField(t, tt, "Steam 安装路径")
 	tt.Type(`D:\Steam`)
 	if err := tt.Click("通用"); err != nil {
 		t.Fatalf("switch to the General tab: %v", err)
@@ -600,9 +610,7 @@ func TestTheSteamTabKeepsTheTypedDraftWhileTheDialogMovesBetweenTabs(t *testing.
 	if err := tt.Click("Steam 设置"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Steam 安装路径"); err != nil {
-		t.Fatal(err)
-	}
+	clickField(t, tt, "Steam 安装路径")
 	tt.Type(`D:\Steam`)
 	if err := tt.Click("关于"); err != nil {
 		t.Fatal(err)

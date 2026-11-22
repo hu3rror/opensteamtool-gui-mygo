@@ -22,9 +22,7 @@ func TestTheLuaTabNamesTheLayoutFolderAndItsState(t *testing.T) {
 			t.Errorf("the Lua tab misses %q", want)
 		}
 	}
-	if err := tt.Click("打开 Lua 目录"); err != nil {
-		t.Fatalf("click open the Lua folder: %v", err)
-	}
+	clickButton(t, tt, "打开 Lua 目录")
 	if opened != 1 {
 		t.Errorf("the folder was opened %d times, want once", opened)
 	}

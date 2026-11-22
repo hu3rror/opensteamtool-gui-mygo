@@ -239,26 +239,27 @@ func wizardBack(c *ui.Context, v app.View, a Actions) {
 }
 
 func wizardPath(c *ui.Context, v app.View, st *State, a Actions) {
-	pathField(c, v, st, a, text(v.Lang, wizardPathPrompt), wizardPathError, "")
-	pathActions(c, v, a)
+	pathRow(c, v, st, a, text(v.Lang, wizardPathPrompt), wizardPathError, "")
 	sourceChoices(c, v, st)
 }
 
 func sourceChoices(c *ui.Context, v app.View, st *State) {
-	breeze.RadioGroup(c, func() {
-		choice := func(name, label, tip string) {
-			el := breeze.Radio(c, &st.SourceChoice, name, label)
-			if tip != "" {
-				el.Tooltip(tip)
+	breeze.Card(c, func() {
+		breeze.RadioGroup(c, func() {
+			choice := func(name, label, note string) {
+				row := breeze.RadioRow(c, &st.SourceChoice, name, label, "", nil)
+				if note != "" {
+					row.Tooltip(note)
+				}
+				if row.Changed() {
+					st.SourceError = false
+				}
 			}
-			if el.Changed() {
-				st.SourceError = false
+			for _, builtin := range source.Builtins() {
+				choice(builtin.Key, builtin.Repository, sourceTooltip(v.Lang, builtin))
 			}
-		}
-		for _, builtin := range source.Builtins() {
-			choice(builtin.Key, builtin.Repository, sourceTooltip(v.Lang, builtin))
-		}
-		choice(CustomChoice, text(v.Lang, customRepository), "")
+			choice(CustomChoice, text(v.Lang, customRepository), "")
+		})
 	})
 	t := c.Theme()
 	if st.SourceChoice == source.KeyOfficial {
@@ -560,34 +561,32 @@ func settingsDialog(c *ui.Context, v app.View, st *State, a Actions) {
 }
 
 func aboutPage(c *ui.Context, v app.View, a Actions) {
-	t := c.Theme()
-	ui.Column(c).Gap(t.Space(3)).Children(func() {
-		ui.Row(c).Gap(t.Space(3)).Children(func() {
-			breeze.Text(c, text(v.Lang, appVersionLabel)).TextColor(t.TextMuted)
+	breeze.Card(c, func() {
+		breeze.ActionRow(c, text(v.Lang, appVersionLabel), "", func() {
 			breeze.Text(c, v.Tool.Version)
 		})
-		ui.Row(c).Gap(t.Space(3)).Children(func() {
-			breeze.Text(c, text(v.Lang, appUpdateRow)).TextColor(t.TextMuted)
+		breeze.ActionRow(c, text(v.Lang, appUpdateRow), "", func() {
 			if breeze.Button(c, text(v.Lang, checkToolUpdate)).Disabled(v.Busy).Clicked() {
 				a.CheckToolUpdate()
 			}
 			toolStatus(c, v)
 		})
-		if v.Tool.State == app.ToolAvailable {
-			if breeze.Button(c, text(v.Lang, openDownloadPage)).Clicked() {
-				a.OpenDownload()
-			}
-		}
-		ui.Row(c).Gap(t.Space(3)).Children(func() {
+		breeze.ActionRow(c, text(v.Lang, projectPage), "", func() {
 			if breeze.Button(c, text(v.Lang, projectPage)).Clicked() {
 				a.OpenProject()
 			}
+		})
+		breeze.ActionRow(c, text(v.Lang, runWizard), text(v.Lang, runWizardHint), func() {
 			if breeze.Button(c, text(v.Lang, runWizard)).Clicked() {
 				a.WizardRerun()
 			}
 		})
-		breeze.Text(c, text(v.Lang, runWizardHint)).TextColor(t.TextMuted)
 	})
+	if v.Tool.State == app.ToolAvailable {
+		if breeze.Button(c, text(v.Lang, openDownloadPage)).Clicked() {
+			a.OpenDownload()
+		}
+	}
 }
 
 func toolStatus(c *ui.Context, v app.View) {
@@ -605,58 +604,47 @@ func toolStatus(c *ui.Context, v app.View) {
 }
 
 func generalPage(c *ui.Context, v app.View, st *State, a Actions) {
-	t := c.Theme()
-	ui.Column(c).Gap(t.Space(3)).Children(func() {
-		ui.Row(c).Gap(t.Space(3)).Children(func() {
-			breeze.Text(c, text(v.Lang, languageRow))
+	ui.Column(c).Gap(c.Theme().Space(2)).Children(func() {
+		breeze.Card(c, func() {
 			labels := choiceLabels(v.Lang, followSystem, languageChinese, languageEnglish)
 			value := labels[st.Language]
-			if breeze.Select(c, &value, labels).Changed() {
+			if breeze.ComboRow(c, text(v.Lang, languageRow), "", &value, labels).Changed() {
 				st.Language = slices.Index(labels, value)
 				a.SetLanguage(app.Language(st.Language))
 			}
-		})
-		ui.Row(c).Gap(t.Space(3)).Children(func() {
-			breeze.Text(c, text(v.Lang, themeRow))
-			labels := choiceLabels(v.Lang, followSystem, themeDark, themeLight)
-			value := labels[st.Theme]
-			if breeze.Select(c, &value, labels).Changed() {
-				st.Theme = slices.Index(labels, value)
+			themes := choiceLabels(v.Lang, followSystem, themeDark, themeLight)
+			chosen := themes[st.Theme]
+			if breeze.ComboRow(c, text(v.Lang, themeRow), "", &chosen, themes).Changed() {
+				st.Theme = slices.Index(themes, chosen)
 				a.SetTheme(app.Theme(st.Theme))
 			}
 		})
 	})
 }
 
-func pathField(c *ui.Context, v app.View, st *State, a Actions, label string, errorText key, description string) {
-	submitted := false
-	field := breeze.Field(c, label, func() {
-		input := breeze.TextInput(c, &st.PathDraft).
-			Label(label).
-			Bind(&st.PathHandle)
-		submitted = input.Submitted()
-	})
-	if description != "" {
-		field.Description(description)
-	}
-	if st.PathError {
-		field.Error(text(v.Lang, errorText))
-	}
-	if submitted {
-		st.commitPath(a)
-	}
-	focused := st.PathHandle.Focused(c)
-	if st.PathFocused && !focused && !submitted {
-		st.commitPath(a)
-	}
-	st.PathFocused = focused
-	if st.PathNotFound {
-		breeze.Text(c, text(v.Lang, steamNotFound)).TextColor(c.Theme().Warning)
-	}
-}
-
-func pathActions(c *ui.Context, v app.View, a Actions) {
-	ui.Row(c).Gap(c.Theme().Space(2)).Children(func() {
+func pathRow(c *ui.Context, v app.View, st *State, a Actions, label string, errorText key, description string) {
+	breeze.ActionRow(c, label, description, func() {
+		submitted := false
+		field := breeze.Field(c, "", func() {
+			input := breeze.TextInput(c, &st.PathDraft).
+				Label(label).
+				Bind(&st.PathHandle)
+			submitted = input.Submitted()
+		})
+		if st.PathError {
+			field.Error(text(v.Lang, errorText))
+		}
+		if submitted {
+			st.commitPath(a)
+		}
+		focused := st.PathHandle.Focused(c)
+		if st.PathFocused && !focused && !submitted {
+			st.commitPath(a)
+		}
+		st.PathFocused = focused
+		if st.PathNotFound {
+			breeze.Text(c, text(v.Lang, steamNotFound)).TextColor(c.Theme().Warning)
+		}
 		if breeze.Button(c, text(v.Lang, browse)).Clicked() {
 			a.Browse()
 		}
@@ -668,8 +656,9 @@ func pathActions(c *ui.Context, v app.View, a Actions) {
 
 func steamPage(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
-	pathField(c, v, st, a, text(v.Lang, steamPathRow), steamPathError, text(v.Lang, steamPathHint))
-	pathActions(c, v, a)
+	breeze.Card(c, func() {
+		pathRow(c, v, st, a, text(v.Lang, steamPathRow), steamPathError, text(v.Lang, steamPathHint))
+	})
 	entryControl(c, v, st, a)
 	breeze.Text(c, text(v.Lang, steamCfgNote)).TextColor(t.TextMuted)
 	compatibilitySection(c, v, st, a)
@@ -677,28 +666,31 @@ func steamPage(c *ui.Context, v app.View, st *State, a Actions) {
 
 func luaPage(c *ui.Context, v app.View, a Actions) {
 	t := c.Theme()
-	ui.Column(c).Gap(t.Space(3)).Children(func() {
+	ui.Column(c).Gap(t.Space(2)).Children(func() {
 		if v.LuaDir == "" {
 			breeze.Text(c, text(v.Lang, pathUnset)).TextColor(t.TextMuted)
 			return
 		}
-		ui.Row(c).Gap(t.Space(3)).Children(func() {
-			breeze.Text(c, text(v.Lang, luaLayoutRow)).TextColor(t.TextMuted)
-			breeze.Text(c, v.LuaRelative)
+		breeze.Card(c, func() {
+			breeze.ActionRow(c, text(v.Lang, luaLayoutRow), "", func() {
+				breeze.Text(c, v.LuaRelative)
+			})
+			breeze.ActionRow(c, text(v.Lang, luaPathRow), "", func() {
+				breeze.Text(c, v.LuaDir)
+			})
+			manifest := text(v.Lang, luaManifestMissing)
+			if v.LuaManifest {
+				manifest = text(v.Lang, luaManifestReady)
+			}
+			breeze.ActionRow(c, text(v.Lang, luaHint), "", func() {
+				breeze.Text(c, manifest)
+			})
+			breeze.ActionRow(c, text(v.Lang, openLuaFolder), "", func() {
+				if breeze.Button(c, text(v.Lang, openLuaFolder)).Clicked() {
+					a.OpenLua()
+				}
+			})
 		})
-		ui.Row(c).Gap(t.Space(3)).Children(func() {
-			breeze.Text(c, text(v.Lang, luaPathRow)).TextColor(t.TextMuted)
-			breeze.Text(c, v.LuaDir)
-		})
-		if v.LuaManifest {
-			breeze.Text(c, text(v.Lang, luaManifestReady))
-		} else {
-			breeze.Text(c, text(v.Lang, luaManifestMissing)).TextColor(t.TextMuted)
-		}
-		breeze.Text(c, text(v.Lang, luaHint)).TextColor(t.TextMuted)
-		if breeze.Button(c, text(v.Lang, openLuaFolder)).Clicked() {
-			a.OpenLua()
-		}
 	})
 }
 
@@ -766,14 +758,15 @@ func entryControl(c *ui.Context, v app.View, st *State, a Actions) {
 	if !src.Layout.Has(source.EntryEarly) {
 		return
 	}
-	breeze.Text(c, text(v.Lang, entryRow))
-	breeze.RadioGroup(c, func() {
-		for _, entry := range []source.Entry{source.EntryDefault, source.EntryEarly} {
-			radio := breeze.Radio(c, &st.Entry, entry, text(v.Lang, entryLabels[entry]))
-			radio.Disabled(src.EntryState(entry) != source.EntrySelectable)
-			if radio.Changed() {
-				a.SetEntry(entry)
+	breeze.Card(c, func() {
+		breeze.RadioGroup(c, func() {
+			for _, entry := range []source.Entry{source.EntryDefault, source.EntryEarly} {
+				row := breeze.RadioRow(c, &st.Entry, entry, text(v.Lang, entryLabels[entry]), text(v.Lang, entryRow), nil)
+				row.Disabled(src.EntryState(entry) != source.EntrySelectable)
+				if row.Changed() {
+					a.SetEntry(entry)
+				}
 			}
-		}
+		})
 	})
 }

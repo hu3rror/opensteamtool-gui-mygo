@@ -21,7 +21,7 @@ var trayIcon []byte
 
 const (
 	minContentWidth  = 460
-	minContentHeight = 620
+	minContentHeight = 700
 )
 
 func locale() string {

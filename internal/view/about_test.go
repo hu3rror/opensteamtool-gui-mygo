@@ -26,7 +26,7 @@ func aboutTab(t *testing.T, facts app.Facts) (*ui.Tester, *int) {
 		OpenDownload:    func() { *opened = *opened + 1 },
 		WizardRerun:     func() { *opened = *opened + 1 },
 	}
-	tt := ui.NewTester(s.view, 480, 360)
+	tt := ui.NewTester(s.view, 480, 700)
 	if err := tt.Click("设置"); err != nil {
 		t.Fatalf("click the gear: %v", err)
 	}
@@ -42,9 +42,7 @@ func TestTheAboutTabShowsTheVersionAndTheProjectPage(t *testing.T) {
 	if got := tt.Texts(); !slices.Contains(got, "软件版本") || !slices.Contains(got, "0.1.0") {
 		t.Fatalf("texts = %q, want the running version", got)
 	}
-	if err := tt.Click("项目主页"); err != nil {
-		t.Fatalf("click the project page: %v", err)
-	}
+	clickButton(t, tt, "项目主页")
 	if *opened != 1 {
 		t.Errorf("the project page opened %d times, want once", *opened)
 	}
@@ -98,9 +96,7 @@ func TestTheAboutTabReportsTheToolCheckResult(t *testing.T) {
 				t.Errorf("the check is disabled %v, want %v", check.Disabled, test.facts.Busy == app.BusyCheckTool)
 			}
 			if test.name == "newer" {
-				if err := tt.Click("打开下载页"); err != nil {
-					t.Fatalf("click the download page: %v", err)
-				}
+				clickButton(t, tt, "打开下载页")
 				if *opened != 1 {
 					t.Errorf("the download page opened %d times, want once", *opened)
 				}
@@ -121,9 +117,7 @@ func TestTheAboutTabRerunsTheWizard(t *testing.T) {
 	if rerun.Disabled {
 		t.Error("the wizard rerun is held while nothing blocks it")
 	}
-	if err := tt.Click("重新运行向导"); err != nil {
-		t.Fatalf("click the rerun: %v", err)
-	}
+	clickButton(t, tt, "重新运行向导")
 	if *opened != 1 {
 		t.Errorf("the rerun ran %d times, want once", *opened)
 	}
