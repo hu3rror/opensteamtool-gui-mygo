@@ -54,9 +54,7 @@ func TestTheAboutTabChecksTheToolOnlyWhenClicked(t *testing.T) {
 		t.Fatalf("the check ran %d times before a click", *opened)
 	}
 
-	if err := tt.Click("检查应用更新"); err != nil {
-		t.Fatalf("click the check: %v", err)
-	}
+	clickButton(t, tt, "检查应用更新")
 	if *opened != 1 {
 		t.Errorf("the check ran %d times, want once", *opened)
 	}

@@ -571,9 +571,7 @@ func TestTheSteamTabCommitsWhenTheFieldLosesFocus(t *testing.T) {
 	}
 	clickField(t, tt, "Steam 安装路径")
 	tt.Type(`D:\Steam`)
-	if err := tt.Click("浏览…"); err != nil {
-		t.Fatalf("click browse: %v", err)
-	}
+	clickButton(t, tt, "浏览…")
 
 	if !slices.Contains(committed, `D:\Steam`) {
 		t.Errorf("committed %v, the draft was lost when the field lost focus", committed)
@@ -628,9 +626,7 @@ func TestBrowseAsksTheAppForADirectory(t *testing.T) {
 	if err := tt.Click("Steam 设置"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("浏览…"); err != nil {
-		t.Fatalf("click browse: %v", err)
-	}
+	clickButton(t, tt, "浏览…")
 	if asked != 1 {
 		t.Errorf("browse was asked %d times, want once", asked)
 	}
