@@ -427,7 +427,7 @@ func actionRow(c *ui.Context, v app.View, a Actions) {
 	t := c.Theme()
 	busy := v.Busy
 	ui.Row(c).Gap(t.Space(4)).Children(func() {
-		if breeze.Button(c, text(v.Lang, applyAndStart)).Disabled(busy || v.PrimaryDisabled).Clicked() {
+		if breeze.PrimaryButton(c, text(v.Lang, applyAndStart)).Disabled(busy || v.PrimaryDisabled).Clicked() {
 			a.Apply()
 		}
 		if v.Conflict == "" {
@@ -472,22 +472,40 @@ func runSecondary(a Actions, action app.SecondaryAction) {
 	}
 }
 
-var pendingQuestions = map[app.Confirmation]key{
-	app.ConfirmExitRemove:       runningQuestion,
-	app.ConfirmRemoveAndRestart: runningQuestion,
-	app.ConfirmExit:             quitQuestion,
+type pendingQuestion struct {
+	text        key
+	destructive bool
 }
 
+var pendingQuestions = map[app.Confirmation]pendingQuestion{
+	app.ConfirmExitRemove:       {text: runningQuestion, destructive: true},
+	app.ConfirmRemoveAndRestart: {text: runningQuestion, destructive: true},
+	app.ConfirmExit:             {text: quitQuestion},
+}
+
+const (
+	yesChoice = iota
+	noChoice
+)
+
 func confirm(c *ui.Context, v app.View, a Actions) {
-	question, ok := pendingQuestions[v.Pending]
+	pending, ok := pendingQuestions[v.Pending]
 	if !ok {
 		return
 	}
 	open := true
-	switch ui.AlertDialog(c, &open, text(v.Lang, confirmTitle), text(v.Lang, question), text(v.Lang, yes), text(v.Lang, no)) {
-	case 0:
+	title, message := text(v.Lang, confirmTitle), text(v.Lang, pending.text)
+	yesButton, noButton := text(v.Lang, yes), text(v.Lang, no)
+	var chosen int
+	if pending.destructive {
+		chosen = breeze.DestructiveAlertDialog(c, &open, title, message, yesChoice, yesButton, noButton)
+	} else {
+		chosen = breeze.AlertDialog(c, &open, title, message, yesButton, noButton)
+	}
+	switch chosen {
+	case yesChoice:
 		a.Confirm()
-	case 1:
+	case noChoice:
 		a.Cancel()
 	}
 }

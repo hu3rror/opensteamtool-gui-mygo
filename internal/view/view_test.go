@@ -938,6 +938,32 @@ func TestTheConfirmDialogStaysUntilItIsAnswered(t *testing.T) {
 	}
 }
 
+func TestEnterCancelsEachRemovalConfirmation(t *testing.T) {
+	tests := []struct {
+		name    string
+		pending app.Confirmation
+	}{
+		{name: "quit and remove", pending: app.ConfirmExitRemove},
+		{name: "remove and restart", pending: app.ConfirmRemoveAndRestart},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := &screen{facts: app.Facts{Locale: "zh-CN", SteamPathValid: true, Deployment: app.Applied, SteamRunning: true, Pending: test.pending}}
+			confirmed, cancelled := 0, 0
+			s.actions = view.Actions{
+				Confirm: func() { confirmed++ },
+				Cancel:  func() { cancelled++ },
+			}
+			tt := ui.NewTester(s.view, 480, 360)
+			tt.Key(0, ui.KeyEnter)
+			tt.Frame()
+			if confirmed != 0 || cancelled != 1 {
+				t.Errorf("Enter confirmed %d times and cancelled %d, want the cancellation", confirmed, cancelled)
+			}
+		})
+	}
+}
+
 func TestTheRiskLineShowsOnlyForAnUnadaptedOrMissingCore(t *testing.T) {
 	healths := []app.Health{
 		app.HealthChecking,
