@@ -141,11 +141,6 @@ func TestMainDerivesOneStateAndAtMostOneExplanation(t *testing.T) {
 			texts: []string{"未应用", "Steam 未运行", "检查中…", "应用补丁并启动 Steam", "检查补丁更新", "设置"},
 		},
 		{
-			name:  "tool check busy leaves the update slot alone",
-			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Busy: app.BusyCheckTool},
-			texts: append([]string{"已应用", "Steam 未运行", "应用补丁并启动 Steam", "检查补丁更新", "设置"}, removal...),
-		},
-		{
 			name:  "download busy keeps the file fact",
 			facts: app.Facts{SteamPathValid: true, Deployment: app.Applied, PatchDownloaded: true, Busy: app.BusyDownloadPatch},
 			texts: append([]string{"已应用", "Steam 未运行", "应用补丁并启动 Steam", "检查补丁更新", "正在下载补丁…", "设置"}, removal...),
@@ -391,7 +386,7 @@ func TestEverySettingsPageFitsTheSmallestWindow(t *testing.T) {
 				Health:          health,
 				OnlineVersion:   "1.2.3",
 				UpdateChecked:   true,
-				ToolVersion:     "0.2.1",
+				AppVersion:      "0.2.1",
 				LuaRelative:     "config/lua",
 				LuaDir:          `C:\Program Files (x86)\Steam\config\lua`,
 				WindowWidth:     width,
@@ -1486,15 +1481,48 @@ func bounds(t *testing.T, tt *ui.Tester, role ui.Role, name string) ui.Rect {
 	return target.Bounds
 }
 
-func TestAToolCheckNeverDisablesThePatchButtons(t *testing.T) {
-	tt := shown(t, app.Facts{SteamPathValid: true, Busy: app.BusyCheckTool})
-
-	check, found := tt.Access("检查补丁更新")
-	if !found {
-		t.Fatal("the patch check is gone")
+func TestTheGeneralTabPassesBothUpdateSwitchesToTheApp(t *testing.T) {
+	tests := []struct {
+		locale    string
+		gear      string
+		checks    string
+		downloads string
+	}{
+		{locale: "zh-CN", gear: "设置", checks: "自动检查更新", downloads: "自动下载并安装更新"},
+		{locale: "en-US", gear: "Settings", checks: "Automatic checks", downloads: "Automatic installs"},
 	}
-	if check.Disabled {
-		t.Error("the patch check waits for the tool check")
+	for _, test := range tests {
+		t.Run(test.locale, func(t *testing.T) {
+			s := &screen{facts: app.Facts{Locale: test.locale, AutomaticChecks: true}}
+			var checks, downloads []bool
+			s.actions = view.Actions{
+				SetAutomaticChecks:    func(on bool) { checks = append(checks, on) },
+				SetAutomaticDownloads: func(on bool) { downloads = append(downloads, on) },
+			}
+			tt := ui.NewTester(s.view, 480, 700)
+			if err := tt.Click(test.gear); err != nil {
+				t.Fatalf("click the gear: %v", err)
+			}
+			for _, label := range []string{test.checks, test.downloads} {
+				if !tt.HasText(label) {
+					t.Fatalf("texts = %q, want %q", tt.Texts(), label)
+				}
+			}
+			if err := tt.Click(test.checks); err != nil {
+				t.Fatalf("click %q: %v", test.checks, err)
+			}
+			tt.Frame()
+			if !slices.Equal(checks, []bool{false}) {
+				t.Errorf("checks = %v, want the switch turned off once", checks)
+			}
+			if err := tt.Click(test.downloads); err != nil {
+				t.Fatalf("click %q: %v", test.downloads, err)
+			}
+			tt.Frame()
+			if !slices.Equal(downloads, []bool{true}) {
+				t.Errorf("downloads = %v, want the switch turned on once", downloads)
+			}
+		})
 	}
 }
 
@@ -1557,7 +1585,7 @@ func TestTheViewDrawsInThePlatformTheme(t *testing.T) {
 
 func TestTheWindowDrawsItsOwnTitleBarWhenTheSystemOneIsHidden(t *testing.T) {
 	for _, wizard := range []bool{false, true} {
-		s := &screen{facts: app.Facts{Locale: "zh-CN", ToolVersion: "0.2.2"}}
+		s := &screen{facts: app.Facts{Locale: "zh-CN", AppVersion: "0.2.2"}}
 		s.facts.Wizard.Open = wizard
 		tt := ui.NewTester(s.view, 480, 360)
 		if tt.HasText(view.Title()) {

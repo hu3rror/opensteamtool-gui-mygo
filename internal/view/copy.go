@@ -72,9 +72,11 @@ const (
 	appUpdateRow             key = "应用更新"
 	projectPage              key = "项目主页"
 	checkToolUpdate          key = "检查应用更新"
-	toolChecking             key = "正在检查应用更新..."
-	toolUpToDate             key = "已是最新版本"
-	toolAvailable            key = "发现新版本 %s"
+	updateAvailable          key = "发现新版本 %s"
+	automaticChecksRow       key = "自动检查更新"
+	automaticChecksHint      key = "启动后自动检查，此后每天一次"
+	automaticDownloadsRow    key = "自动下载并安装更新"
+	automaticDownloadsHint   key = "后台下载，下次启动时生效"
 	openDownloadPage         key = "打开下载页"
 	runWizard                key = "重新运行向导"
 	runWizardHint            key = "沿用当前语言、主题与路径"
@@ -218,9 +220,11 @@ var copyTable = map[key]string{
 	appUpdateRow:             "App update",
 	projectPage:              "Project page",
 	checkToolUpdate:          "Check for app updates",
-	toolChecking:             "Checking for app updates...",
-	toolUpToDate:             "Up to date",
-	toolAvailable:            "Version %s is available",
+	updateAvailable:          "Version %s is available",
+	automaticChecksRow:       "Automatic checks",
+	automaticChecksHint:      "Checks at launch, then once a day.",
+	automaticDownloadsRow:    "Automatic installs",
+	automaticDownloadsHint:   "Downloads in the background and applies at the next launch.",
 	openDownloadPage:         "Open the download page",
 	runWizard:                "Run the setup wizard again",
 	runWizardHint:            "The wizard uses the current language, theme and path.",
@@ -435,8 +439,8 @@ func conflictText(l app.Lang, name string) string {
 	return strings.Replace(text(l, conflictFound), "%s", name, 1)
 }
 
-func toolAvailableText(l app.Lang, version string) string {
-	return strings.Replace(text(l, toolAvailable), "%s", version, 1)
+func updateAvailableText(l app.Lang, version string) string {
+	return strings.Replace(text(l, updateAvailable), "%s", version, 1)
 }
 
 func Title() string { return "OpenSteamTool Manager MyGo" }

@@ -8,8 +8,11 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
+	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 
+	"opensteamtool-gui-mygo/internal/app"
 	"opensteamtool-gui-mygo/internal/config"
 	"opensteamtool-gui-mygo/internal/rt"
 	"opensteamtool-gui-mygo/internal/steam"
@@ -31,6 +34,15 @@ func locale() string {
 	}
 	return langs[0]
 }
+func updaterLanguage(cfg config.Config, locale string) string {
+	switch cfg.Language {
+	case app.LanguageChinese:
+		return "zh-Hans"
+	case app.LanguageEnglish:
+		return "en"
+	}
+	return locale
+}
 
 func toolDir() string {
 	exe, err := os.Executable()
@@ -49,12 +61,22 @@ func main() {
 	if err != nil {
 		log.Printf("read config: %v", err)
 	}
-	s := newSession(rt.OS{}, time.Sleep, locale(), cfg, readable, dir)
+	preferred := locale()
+	mygo.Use(native.New(updater.Options{Language: updaterLanguage(cfg, preferred), DisableAutomaticChecks: true}))
+	s := newSession(rt.OS{}, time.Sleep, preferred, cfg, readable, dir)
 	s.persist = func(cfg config.Config) error { return config.Save(dir, cfg) }
-	s.setToolVersion(mygo.App.Version())
+	s.setAppVersion(mygo.App.Version())
 	s.applyTheme()
 
 	mygo.App.WhenReady(func() {
+		s.updateCheck = updater.CheckForUpdates
+		s.updateAvailable = updater.AvailableVersion
+		s.checksOn = updater.AutomaticChecks
+		s.downloadsOn = updater.AutomaticDownloads
+		s.setChecks = updater.SetAutomaticChecks
+		s.setDownloads = updater.SetAutomaticDownloads
+		s.watchUpdates = updater.OnChange
+		s.followUpdater()
 		win := mygo.NewWindow(mygo.WindowOptions{
 			Title:          view.Title(),
 			Width:          minContentWidth,
@@ -97,7 +119,7 @@ func main() {
 		tray, err := mygo.NewTray(mygo.TrayOptions{
 			Icon:    trayIcon,
 			ToolTip: view.Title(),
-			Menu:    trayMenu(s),
+			Menu:    trayMenu(s, updater.MenuItem()),
 		})
 		if err != nil {
 			log.Printf("no tray icon: %v", err)
@@ -106,7 +128,7 @@ func main() {
 			tray.OnClick(func() { s.toggle() })
 			s.retray = func() {
 				tray.SetToolTip(view.Title())
-				tray.SetMenu(trayMenu(s))
+				tray.SetMenu(trayMenu(s, updater.MenuItem()))
 			}
 		}
 		s.followSystem()
@@ -118,12 +140,13 @@ func main() {
 	}
 }
 
-func trayMenu(s *session) *mygo.Menu {
+func trayMenu(s *session, update *mygo.MenuItem) *mygo.Menu {
 	lang := s.resolvedLanguage()
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Label: view.Show(lang), Click: func(*mygo.MenuItem, *mygo.Window) { s.wake() }},
 		{Label: view.RestartSteam(lang), Click: func(*mygo.MenuItem, *mygo.Window) { go s.restartSteam() }},
 		{Label: view.OpenLuaFolder(lang), Disabled: !s.factsWithoutGate().SteamPathValid, Click: func(*mygo.MenuItem, *mygo.Window) { go s.openLuaFolder() }},
+		update,
 		{Label: view.Exit(lang), Click: func(*mygo.MenuItem, *mygo.Window) { s.requestExit() }},
 	})
 }

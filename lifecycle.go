@@ -85,6 +85,7 @@ func (s *session) exit() {
 		s.sleep(time.Millisecond)
 	}
 	s.stopTheme()
+	s.stopUpdates()
 	s.quit()
 }
 

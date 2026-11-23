@@ -54,6 +54,14 @@ type session struct {
 	watchTheme func(func()) func()
 	stopTheme  func()
 
+	updateCheck     func()
+	updateAvailable func() string
+	checksOn        func() bool
+	downloadsOn     func() bool
+	setChecks       func(bool)
+	setDownloads    func(bool)
+	watchUpdates    func(func()) func()
+	stopUpdates     func()
 	tray            bool
 	quitting        bool
 	trayNoticeShown bool
@@ -84,39 +92,50 @@ func newSession(host rt.Runtime, sleep func(time.Duration), locale string, cfg c
 		applyDark:  applyAppearance,
 		watchTheme: mygo.Theme.OnUpdated,
 		stopTheme:  func() {},
+
+		updateCheck:     func() {},
+		updateAvailable: func() string { return "" },
+		checksOn:        func() bool { return false },
+		downloadsOn:     func() bool { return false },
+		setChecks:       func(bool) {},
+		setDownloads:    func(bool) {},
+		watchUpdates:    func(func()) func() { return func() {} },
+		stopUpdates:     func() {},
 	}
 	s.trayNoticeShown = cfg.TrayNoticeShown
 	s.facts = factsFor(cfg.Language, locale, cfg, host, s.dir)
 	s.actions = view.Actions{
-		SetLanguage:         s.setLanguage,
-		SetTheme:            s.setTheme,
-		CommitPath:          s.commitSteamPath,
-		Browse:              s.browseSteamPath,
-		Detect:              s.detectSteam,
-		OpenLua:             s.openLuaFolder,
-		ApplySource:         s.applySource,
-		SetEntry:            s.setEntry,
-		CheckUpdate:         func() { s.checkUpdate() },
-		Download:            func() { s.downloadPatch() },
-		Apply:               func() { s.applyPatch() },
-		RemoveConflict:      func() { s.removeConflictAndDeploy() },
-		Uninstall:           func() { s.uninstall() },
-		ExitAndUninstall:    func() { s.exitSteamAndUninstall() },
-		UninstallAndRestart: func() { s.uninstallAndRestart() },
-		Confirm:             s.confirmPending,
-		Cancel:              s.declinePending,
-		Prewarm:             func() { s.prewarm(true) },
-		CheckToolUpdate:     func() { s.checkToolUpdate() },
-		OpenProject:         func() { s.openURL(projectURL) },
-		OpenDownload:        func() { s.openURL(releasesURL) },
-		WizardNext:          s.wizardNext,
-		WizardBack:          s.wizardBack,
-		WizardRerun:         s.rerunWizard,
-		WizardLanguage:      s.setWizardLanguage,
-		WizardTheme:         s.setWizardTheme,
-		WizardDownload:      func() { s.startWizardDownload() },
-		WizardSkip:          s.finishWizard,
-		WizardFinish:        s.finishWizard,
+		SetLanguage:           s.setLanguage,
+		SetTheme:              s.setTheme,
+		CommitPath:            s.commitSteamPath,
+		Browse:                s.browseSteamPath,
+		Detect:                s.detectSteam,
+		OpenLua:               s.openLuaFolder,
+		ApplySource:           s.applySource,
+		SetEntry:              s.setEntry,
+		CheckUpdate:           func() { s.checkUpdate() },
+		Download:              func() { s.downloadPatch() },
+		Apply:                 func() { s.applyPatch() },
+		RemoveConflict:        func() { s.removeConflictAndDeploy() },
+		Uninstall:             func() { s.uninstall() },
+		ExitAndUninstall:      func() { s.exitSteamAndUninstall() },
+		UninstallAndRestart:   func() { s.uninstallAndRestart() },
+		Confirm:               s.confirmPending,
+		Cancel:                s.declinePending,
+		Prewarm:               func() { s.prewarm(true) },
+		CheckAppUpdate:        func() { s.updateCheck() },
+		SetAutomaticChecks:    s.setAutomaticChecks,
+		SetAutomaticDownloads: s.setAutomaticDownloads,
+		OpenProject:           func() { s.openURL(projectURL) },
+		OpenDownload:          func() { s.openURL(releasesURL) },
+		WizardNext:            s.wizardNext,
+		WizardBack:            s.wizardBack,
+		WizardRerun:           s.rerunWizard,
+		WizardLanguage:        s.setWizardLanguage,
+		WizardTheme:           s.setWizardTheme,
+		WizardDownload:        func() { s.startWizardDownload() },
+		WizardSkip:            s.finishWizard,
+		WizardFinish:          s.finishWizard,
 	}
 	if !readable {
 		s.openWizard()

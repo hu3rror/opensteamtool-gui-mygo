@@ -1,11 +1,6 @@
 package main
 
-import (
-	"log"
-
-	"opensteamtool-gui-mygo/internal/app"
-	"opensteamtool-gui-mygo/internal/patch"
-)
+import "log"
 
 const (
 	projectRepo = "hu3rror/opensteamtool-gui-mygo"
@@ -13,49 +8,37 @@ const (
 	releasesURL = projectURL + "/releases"
 )
 
-func toolReleaseURL() string {
-	return patch.LatestURL(projectRepo)
-}
-
-func (s *session) setToolVersion(version string) {
+func (s *session) setAppVersion(version string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.facts.ToolVersion = version
+	s.facts.AppVersion = version
 }
 
-func (s *session) checkToolUpdate() bool {
-	if !s.take(app.BusyCheckTool) {
-		return false
-	}
-	go s.runToolCheck()
-	return true
+func (s *session) setAutomaticChecks(on bool) {
+	s.setChecks(on)
+	s.refreshUpdate()
 }
 
-func (s *session) runToolCheck() {
-	version, err := s.latestTool()
-	if err != nil {
-		log.Printf("check the tool release: %v", err)
-	}
-	s.onUI(func() {
-		s.mu.Lock()
-		s.facts.ToolChecked = err == nil
-		s.facts.ToolFailed = err != nil
-		s.facts.ToolOnline = version
-		s.mu.Unlock()
-		s.done(app.NoResult)
-	})
+func (s *session) setAutomaticDownloads(on bool) {
+	s.setDownloads(on)
+	s.refreshUpdate()
 }
 
-func (s *session) latestTool() (string, error) {
-	body, err := s.host.Get(toolReleaseURL())
-	if err != nil {
-		return "", err
-	}
-	release, err := patch.Parse(body)
-	if err != nil {
-		return "", err
-	}
-	return release.Version, nil
+func (s *session) refreshUpdate() {
+	available := s.updateAvailable()
+	checks := s.checksOn()
+	downloads := s.downloadsOn()
+	s.mu.Lock()
+	s.facts.UpdateAvailable = available
+	s.facts.AutomaticChecks = checks
+	s.facts.AutomaticDownloads = downloads
+	s.mu.Unlock()
+	s.draw()
+}
+
+func (s *session) followUpdater() {
+	s.stopUpdates = s.watchUpdates(s.refreshUpdate)
+	s.refreshUpdate()
 }
 
 func (s *session) openURL(url string) {

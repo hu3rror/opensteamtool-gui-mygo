@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"github.com/egoist/mygo"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -384,12 +385,13 @@ func TestTheSteamCfgFactFollowsTheFile(t *testing.T) {
 	}
 }
 
-func TestTheTrayMenuListsTheFourEntriesInOrder(t *testing.T) {
+func TestTheTrayMenuListsTheFiveEntriesInOrder(t *testing.T) {
 	s := newTestSession(t, &rt.Fake{}, t.TempDir())
 	lang := s.resolvedLanguage()
-	want := []string{view.Show(lang), view.RestartSteam(lang), view.OpenLuaFolder(lang), view.Exit(lang)}
+	update := &mygo.MenuItem{Label: "检查更新…"}
+	want := []string{view.Show(lang), view.RestartSteam(lang), view.OpenLuaFolder(lang), update.Label, view.Exit(lang)}
 
-	items := trayMenu(s).Items()
+	items := trayMenu(s, update).Items()
 	if len(items) != len(want) {
 		t.Fatalf("items = %d, want %d", len(items), len(want))
 	}
@@ -401,9 +403,12 @@ func TestTheTrayMenuListsTheFourEntriesInOrder(t *testing.T) {
 	if !items[2].Disabled {
 		t.Fatal("the Lua folder entry is enabled without a valid Steam path")
 	}
+	if items[3] != update {
+		t.Error("the update entry is not the one the plugin made")
+	}
 
 	s.facts.SteamPathValid = true
-	if trayMenu(s).Items()[2].Disabled {
+	if trayMenu(s, update).Items()[2].Disabled {
 		t.Fatal("the Lua folder entry is disabled with a valid Steam path")
 	}
 }

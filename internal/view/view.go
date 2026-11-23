@@ -38,35 +38,37 @@ type State struct {
 }
 
 type Actions struct {
-	SetLanguage         func(app.Language)
-	SetTheme            func(app.Theme)
-	CommitPath          func(raw string) bool
-	Browse              func()
-	Detect              func()
-	OpenLua             func()
-	ApplySource         func(draft source.Draft) (source.Source, bool)
-	SetEntry            func(source.Entry)
-	CheckUpdate         func()
-	Download            func()
-	Apply               func()
-	RemoveConflict      func()
-	Uninstall           func()
-	ExitAndUninstall    func()
-	UninstallAndRestart func()
-	Confirm             func()
-	Cancel              func()
-	Prewarm             func()
-	CheckToolUpdate     func()
-	OpenProject         func()
-	OpenDownload        func()
-	WizardNext          func()
-	WizardBack          func()
-	WizardRerun         func()
-	WizardLanguage      func(app.Language)
-	WizardTheme         func(app.Theme)
-	WizardDownload      func()
-	WizardSkip          func()
-	WizardFinish        func()
+	SetLanguage           func(app.Language)
+	SetTheme              func(app.Theme)
+	CommitPath            func(raw string) bool
+	Browse                func()
+	Detect                func()
+	OpenLua               func()
+	ApplySource           func(draft source.Draft) (source.Source, bool)
+	SetEntry              func(source.Entry)
+	CheckUpdate           func()
+	Download              func()
+	Apply                 func()
+	RemoveConflict        func()
+	Uninstall             func()
+	ExitAndUninstall      func()
+	UninstallAndRestart   func()
+	Confirm               func()
+	Cancel                func()
+	Prewarm               func()
+	CheckAppUpdate        func()
+	SetAutomaticChecks    func(bool)
+	SetAutomaticDownloads func(bool)
+	OpenProject           func()
+	OpenDownload          func()
+	WizardNext            func()
+	WizardBack            func()
+	WizardRerun           func()
+	WizardLanguage        func(app.Language)
+	WizardTheme           func(app.Theme)
+	WizardDownload        func()
+	WizardSkip            func()
+	WizardFinish          func()
 }
 
 func Main(c *ui.Context, v app.View, st *State, a Actions) {
@@ -92,7 +94,7 @@ func titleBar(c *ui.Context, v app.View) {
 	if c.TitleBar().Height <= 0 {
 		return
 	}
-	breeze.HeaderBar(c, Title(), v.Tool.Version, nil, nil)
+	breeze.HeaderBar(c, Title(), v.AppVersion, nil, nil)
 }
 
 func wizard(c *ui.Context, v app.View, st *State, a Actions) {
@@ -634,23 +636,26 @@ func settingsDialog(c *ui.Context, v app.View, st *State, a Actions) {
 }
 
 func aboutPage(c *ui.Context, v app.View, a Actions) {
+	t := c.Theme()
 	breeze.Card(c, func() {
 		breeze.ActionRow(c, text(v.Lang, appVersionLabel), "", func() {
-			breeze.Text(c, v.Tool.Version)
+			breeze.Text(c, v.AppVersion)
 		})
 		breeze.ActionRow(c, text(v.Lang, appUpdateRow), "", func() {
-			if breeze.Button(c, text(v.Lang, checkToolUpdate)).Disabled(v.Busy).Clicked() {
-				a.CheckToolUpdate()
-			}
-			toolStatus(c, v)
-		})
-		if v.Tool.State == app.ToolAvailable {
-			breeze.ActionRow(c, text(v.Lang, openDownloadPage), "", func() {
-				if breeze.Button(c, text(v.Lang, openDownloadPage)).Clicked() {
-					a.OpenDownload()
+			ui.Column(c).Gap(t.Space(1)).Children(func() {
+				if breeze.Button(c, text(v.Lang, checkToolUpdate)).Clicked() {
+					a.CheckAppUpdate()
+				}
+				if v.UpdateAvailable != "" {
+					breeze.Text(c, updateAvailableText(v.Lang, v.UpdateAvailable)).TextColor(t.TextMuted)
 				}
 			})
-		}
+		})
+		breeze.ActionRow(c, text(v.Lang, openDownloadPage), "", func() {
+			if breeze.Button(c, text(v.Lang, openDownloadPage)).Clicked() {
+				a.OpenDownload()
+			}
+		})
 		breeze.ActionRow(c, text(v.Lang, projectPage), "", func() {
 			if breeze.Button(c, text(v.Lang, projectPage)).Clicked() {
 				a.OpenProject()
@@ -662,20 +667,6 @@ func aboutPage(c *ui.Context, v app.View, a Actions) {
 			}
 		})
 	})
-}
-
-func toolStatus(c *ui.Context, v app.View) {
-	t := c.Theme()
-	switch v.Tool.State {
-	case app.ToolChecking:
-		breeze.Text(c, text(v.Lang, toolChecking)).TextColor(t.TextMuted)
-	case app.ToolUpToDate:
-		breeze.Text(c, text(v.Lang, toolUpToDate))
-	case app.ToolAvailable:
-		breeze.Text(c, toolAvailableText(v.Lang, v.Tool.Available)).TextColor(t.TextMuted)
-	case app.ToolCheckFailed:
-		breeze.Text(c, text(v.Lang, checkFailed)).TextColor(t.Danger)
-	}
 }
 
 func generalPage(c *ui.Context, v app.View, st *State, a Actions) {
@@ -693,6 +684,16 @@ func generalPage(c *ui.Context, v app.View, st *State, a Actions) {
 			if breeze.ComboRow(c, text(v.Lang, themeRow), "", &chosen, themes).Changed() {
 				st.Theme = slices.Index(themes, chosen)
 				a.SetTheme(app.Theme(st.Theme))
+			}
+		})
+		breeze.Card(c, func() {
+			checks := v.AutomaticChecks
+			if breeze.SwitchRow(c, text(v.Lang, automaticChecksRow), text(v.Lang, automaticChecksHint), &checks).Changed() {
+				a.SetAutomaticChecks(checks)
+			}
+			downloads := v.AutomaticDownloads
+			if breeze.SwitchRow(c, text(v.Lang, automaticDownloadsRow), text(v.Lang, automaticDownloadsHint), &downloads).Changed() {
+				a.SetAutomaticDownloads(downloads)
 			}
 		})
 	})

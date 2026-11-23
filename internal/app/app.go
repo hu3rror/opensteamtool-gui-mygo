@@ -98,7 +98,6 @@ const (
 	BusyUninstall
 	BusyStartSteam
 	BusyStopSteam
-	BusyCheckTool
 )
 
 var stageStates = map[Busy]MainState{
@@ -231,94 +230,100 @@ const (
 )
 
 type Facts struct {
-	Language        Language
-	Theme           Theme
-	Locale          string
-	WindowWidth     float32
-	Wizard          Wizard
-	SteamPath       string
-	SteamPathValid  bool
-	LuaRelative     string
-	LuaDir          string
-	LuaManifest     bool
-	SteamCfg        bool
-	SteamRunning    bool
-	Deployment      Deployment
-	PatchDownloaded bool
-	PatchComplete   bool
-	PatchVersion    string
-	PatchFailed     bool
-	Conflict        string
-	OnlineVersion   string
-	UpdateChecked   bool
-	UpdateFailed    bool
-	ToolVersion     string
-	ToolChecked     bool
-	ToolFailed      bool
-	ToolOnline      string
-	SnapshotBuild   string
-	ClientBuild     string
-	Health          Health
-	Components      []Component
-	Prewarming      bool
-	PrecacheReady   bool
-	PrecacheFailure Result
-	Busy            Busy
-	Result          Result
-	Pending         Confirmation
+	Language           Language
+	Theme              Theme
+	Locale             string
+	WindowWidth        float32
+	Wizard             Wizard
+	SteamPath          string
+	SteamPathValid     bool
+	LuaRelative        string
+	LuaDir             string
+	LuaManifest        bool
+	SteamCfg           bool
+	SteamRunning       bool
+	Deployment         Deployment
+	PatchDownloaded    bool
+	PatchComplete      bool
+	PatchVersion       string
+	PatchFailed        bool
+	Conflict           string
+	OnlineVersion      string
+	UpdateChecked      bool
+	UpdateFailed       bool
+	AppVersion         string
+	UpdateAvailable    string
+	AutomaticChecks    bool
+	AutomaticDownloads bool
+	SnapshotBuild      string
+	ClientBuild        string
+	Health             Health
+	Components         []Component
+	Prewarming         bool
+	PrecacheReady      bool
+	PrecacheFailure    Result
+	Busy               Busy
+	Result             Result
+	Pending            Confirmation
 }
 
 type View struct {
-	Lang            Lang
-	WindowWidth     float32
-	LuaRelative     string
-	LuaDir          string
-	LuaManifest     bool
-	SteamCfg        bool
-	Wizard          WizardView
-	MainState       MainState
-	Explanation     Explanation
-	Status          Status
-	Conflict        string
-	Update          Conclusion
-	DownloadOffered bool
-	PrimaryDisabled bool
-	UpdateInFlight  Busy
-	Tool            ToolCheck
-	Busy            bool
-	Secondary       []SecondaryAction
-	Pending         Confirmation
-	Health          Health
-	Components      []Component
-	Prewarming      bool
-	PrecacheReady   bool
-	PrecacheFailure Result
-	Risk            bool
+	Lang               Lang
+	WindowWidth        float32
+	LuaRelative        string
+	LuaDir             string
+	LuaManifest        bool
+	SteamCfg           bool
+	Wizard             WizardView
+	MainState          MainState
+	Explanation        Explanation
+	Status             Status
+	Conflict           string
+	Update             Conclusion
+	DownloadOffered    bool
+	PrimaryDisabled    bool
+	UpdateInFlight     Busy
+	AppVersion         string
+	UpdateAvailable    string
+	AutomaticChecks    bool
+	AutomaticDownloads bool
+	Busy               bool
+	Secondary          []SecondaryAction
+	Pending            Confirmation
+	Health             Health
+	Components         []Component
+	Prewarming         bool
+	PrecacheReady      bool
+	PrecacheFailure    Result
+	Risk               bool
 }
 
 func Derive(f Facts) View {
 	v := View{
-		Lang:            f.Language.Resolve(f.Locale),
-		WindowWidth:     f.WindowWidth,
-		LuaRelative:     f.LuaRelative,
-		LuaDir:          f.LuaDir,
-		LuaManifest:     f.LuaManifest,
-		SteamCfg:        f.SteamCfg,
-		Wizard:          wizardViewOf(f.Wizard, f.SteamPathValid),
-		MainState:       mainStateOf(f),
-		Conflict:        f.Conflict,
-		Status:          Status{SteamRunning: f.SteamRunning, Result: f.Result},
-		Secondary:       secondaryOf(f),
-		Pending:         f.Pending,
-		Health:          f.Health,
-		Components:      f.Components,
-		Prewarming:      f.Prewarming,
-		PrecacheReady:   f.PrecacheReady,
-		PrecacheFailure: f.PrecacheFailure,
-		Risk:            riskOf(f),
+		Lang:               f.Language.Resolve(f.Locale),
+		WindowWidth:        f.WindowWidth,
+		LuaRelative:        f.LuaRelative,
+		LuaDir:             f.LuaDir,
+		LuaManifest:        f.LuaManifest,
+		SteamCfg:           f.SteamCfg,
+		Wizard:             wizardViewOf(f.Wizard, f.SteamPathValid),
+		MainState:          mainStateOf(f),
+		Conflict:           f.Conflict,
+		Status:             Status{SteamRunning: f.SteamRunning, Result: f.Result},
+		Secondary:          secondaryOf(f),
+		Pending:            f.Pending,
+		Health:             f.Health,
+		Components:         f.Components,
+		Prewarming:         f.Prewarming,
+		PrecacheReady:      f.PrecacheReady,
+		PrecacheFailure:    f.PrecacheFailure,
+		Risk:               riskOf(f),
+		AppVersion:         f.AppVersion,
+		UpdateAvailable:    f.UpdateAvailable,
+		AutomaticChecks:    f.AutomaticChecks,
+		AutomaticDownloads: f.AutomaticDownloads,
 	}
 	v.Update, v.DownloadOffered = conclusionOf(f)
-	v.Tool = toolCheckOf(f)
 	v.PrimaryDisabled = !f.SteamPathValid || !f.PatchDownloaded || !f.PatchComplete
 	v.Busy = f.Busy != Idle
 	if _, ok := Stage(f.Busy); ok {

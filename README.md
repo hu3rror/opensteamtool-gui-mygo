@@ -24,6 +24,7 @@ The window is native — Go, [MyGo](https://github.com/egoist/mygo) and [Breeze 
 - **Apply in one click** — closes Steam when it is running, deploys the downloaded patch, then starts Steam. A second action removes it, asking first whether Steam should close.
 - **Patch sources by repository** — built-in sources plus any `owner/repo` on GitHub. Each source is locked to the one file layout it publishes, so switching sources never mixes files from two layouts.
 - **Patch updates** — checks the latest release of the selected source, normalises versions (`v1.2.3` and `1.2.3` are the same), and keeps one cached copy per source.
+- **Updates itself** — checks for a new release of the app, shows the release notes, downloads the signed update with a progress bar, and offers to relaunch into it. A failed install leaves the running app usable. **Settings → General** adds **Automatic checks** and **Automatic installs**, and the tray menu checks on demand.
 - **Compatibility check** — reads the installed Steam build and reports whether the patch supports it, with an offline cache you can prewarm so a later check needs no network.
 - **Injection entry** — chooses which proxy DLL loads the patch; the alternate early-isolation entry of the OpenSteamTool layout is available for troubleshooting, except under the official source.
 - **First-run wizard** — language, theme, Steam path and the initial patch download in four steps. It appears on its own when the configuration is missing or the saved path is invalid.
@@ -72,11 +73,11 @@ Hovering a source row shows its role and layout, and the official source adds it
 
 | Tab | Holds |
 |---|---|
-| General | Interface language, theme |
+| General | Interface language, theme, **Automatic checks**, **Automatic installs** |
 | Patch source | Source choice, custom repository, and **Apply and download** when the draft differs from the deployed source |
 | Steam | Steam installation path with automatic detection, injection entry, `steam.cfg` note, Steam core compatibility |
 | Lua folder | The folder the current layout loads `.lua` scripts from, with its full path and whether `manifest.lua` is in place; a button opens it, and the tray menu opens it too |
-| About | App version, app update check, project page, setup wizard |
+| About | App version, app update check with the newer version when there is one, the download page, project page, setup wizard |
 
 ## Files the app keeps
 
@@ -88,6 +89,8 @@ The app keeps its configuration and caches in the folder that holds the executab
 | `patches/<source>/` | The cached patch of that source, one version at a time |
 | `cache/verified.toml` | Component fingerprints that passed verification |
 | `userdata/<source>/` | Optional files you changed by hand, restored on the next deploy |
+
+The updater keeps its preferences and the version you skipped in `updater.json` in the user data directory, next to the window state: they survive an update, which replaces only the files the app ships.
 
 The compatibility cache lives in the Steam folder, under `opensteamtool/`, and is regenerated when missing.
 
@@ -103,7 +106,7 @@ CGO_ENABLED=0 go test ./...               # the suite
 go tool mygo build                        # build/<os>-<arch>/
 ```
 
-`.github/workflows/ci.yml` runs vet and the tests on `windows-latest`. `.github/workflows/release.yml` builds the Windows artifacts on a `v*` tag and publishes them as a GitHub Release; tag the commit that bumped `version` in `mygo.json`, so the installer's name carries that version.
+`.github/workflows/ci.yml` runs vet and the tests on `windows-latest`. `.github/workflows/release.yml` signs a build on a `v*` tag with the repository secret `MYGO_UPDATER_PRIVATE_KEY`, builds with `-upload`, checks that the tag matches `version` in `mygo.json` and that the manifest and the update archive are there, and then publishes the draft release. The updater reads the section of the version in `CHANGELOG.md`, so that file writes the release notes and the release body once. Tag the commit that bumped `version`.
 
 The code is split by concern: `internal/app` holds the state, `internal/view` the window, `internal/patch`, `internal/deploy`, `internal/source`, `internal/compat` and `internal/steam` the domain. `GLOSSARY.md` fixes the vocabulary, `docs/adr/` the decisions behind it.
 
@@ -116,6 +119,6 @@ The code is split by concern: `internal/app` holds the state, `internal/view` th
 > This tool only manages a patch; it ships no Lua scripts, no patch files and no crack or bypass, and it does not look for them for you. The patch it deploys comes from the source you pick; any Lua script or other extra is yours to find, and whether to use it is your call.
 
 > [!NOTE]
-> The app does not update itself. **About → Check for app updates** compares the running version with the latest GitHub release and offers the download page.
+> Updates are signed. The app installs only an update signed with the key that matches the public key compiled into it, so keep the private key safe: losing it strands every copy that is already installed, and a copy that cannot update itself still has the download page under **About**.
 
 The patch binaries belong to their own projects and are licensed GPL-3.0; this app downloads them at run time and ships none of them. Its own source is MIT — see [`LICENSE`](LICENSE).
