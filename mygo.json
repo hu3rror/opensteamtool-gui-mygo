@@ -8,5 +8,10 @@
   "out": "build",
   "windows": {
     "displayName": "OpenSteamTool Manager MyGo"
+  },
+  "updates": {
+    "publicKey": "atSVc67pQhwNf2oZPGt6P4nzmmejSu6tWj3SCkjoVSA=",
+    "tagPrefix": "v",
+    "github": "hu3rror/opensteamtool-gui-mygo"
   }
 }
