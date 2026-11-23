@@ -248,6 +248,19 @@ func TestTheStateWordIsReadAsStatusText(t *testing.T) {
 	}
 }
 
+func TestTheApplyFailureIsReadAsOneStatusNamedByTheMark(t *testing.T) {
+	tt := shown(t, app.Facts{SteamPathValid: true, PatchDownloaded: true, PatchComplete: true, PatchFailed: true})
+	named := 0
+	for _, info := range tt.AccessAll() {
+		if info.Role == ui.RoleStatus && info.Name == "补丁应用失败" {
+			named++
+		}
+	}
+	if named != 1 {
+		t.Errorf("%d status regions named 补丁应用失败 in %+v, want one", named, tt.AccessAll())
+	}
+}
+
 func TestTheTrayMenuSpeaksBothLanguages(t *testing.T) {
 	pairs := []struct {
 		name    string
