@@ -306,8 +306,16 @@ func downloadShape(c *ui.Context, v app.View) {
 
 func mainScreen(c *ui.Context, v app.View, st *State, a Actions) {
 	t := c.Theme()
+	mark := text(v.Lang, mainStateKeys[v.MainState])
+	applyFailed := v.MainState == app.MainPatchFailed
+	if applyFailed {
+		// A status is named by its text, so breeze's label would only repeat the mark in its labels.
+		breeze.InfoBar(c, "error", mark, "", nil).Label("")
+	}
 	ui.Row(c).Fill().Gap(t.Space(4)).Children(func() {
-		breeze.Text(c, text(v.Lang, mainStateKeys[v.MainState]), breeze.TextTitle).Role(ui.RoleStatus)
+		if !applyFailed {
+			breeze.Text(c, mark, breeze.TextTitle).Role(ui.RoleStatus)
+		}
 		ui.Spacer(c)
 		if breeze.Button(c, text(v.Lang, settings)).Clicked() {
 			st.SettingsOpen = true

@@ -15,7 +15,7 @@ The MyGo CLI is a tool of `go.mod`, so `go tool mygo` runs the version the modul
 
 ## Widgets and layout
 
-Controls come from `breeze`, `github.com/yldm-tech/mygo-breeze-ui/ui/breeze`; the layout comes from MyGo's `github.com/egoist/mygo/ui` — `Row`, `Column`, `Box`, `Spacer`, `Scroll` and the style chains. A screen not converted yet keeps `ui`'s controls until its own change; a new or changed screen takes `breeze`'s, and no control is drawn by hand. See `docs/adr/0007-widget-layer.md`.
+Controls come from `breeze`, `github.com/yldm-tech/mygo-breeze-ui/ui/breeze`; MyGo's `github.com/egoist/mygo/ui` supplies the layout — `Row`, `Column`, `Box`, `Spacer`, `Scroll` and the style chains — plus the drawing atoms `breeze` also uses (`ui.Icon`, `ui.MustParseSVG`), the theme scope `ui.Themed` and the look-less `ui.RadioBase` that makes a selectable card. No screen draws itself with `ui`'s controls, and no control is drawn by hand. See `docs/adr/0007-widget-layer.md`.
 
 ## Agent skills
 
