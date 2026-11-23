@@ -434,8 +434,14 @@ func compatibilityDetails(c *ui.Context, v app.View, a Actions) {
 func actionRow(c *ui.Context, v app.View, a Actions) {
 	t := c.Theme()
 	busy := v.Busy
+	unavailable := busy || v.PrimaryDisabled
+	// breeze draws a disabled primary by dimming the accent fill, which reads muddy; WinUI's disabled accent is a neutral fill, which a disabled plain button already is.
+	primary := breeze.PrimaryButton
+	if unavailable {
+		primary = breeze.Button
+	}
 	ui.Row(c).Gap(t.Space(4)).Children(func() {
-		if breeze.PrimaryButton(c, text(v.Lang, applyAndStart)).Disabled(busy || v.PrimaryDisabled).Clicked() {
+		if primary(c, text(v.Lang, applyAndStart)).Disabled(unavailable).Clicked() {
 			a.Apply()
 		}
 		if v.Conflict == "" {
