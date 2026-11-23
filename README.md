@@ -1,29 +1,28 @@
 <div align="center">
   <img src="resources/icon.png" width="120" alt="OpenSteamTool Manager icon">
 
-  <h1>OpenSteamTool Manager</h1>
+  <h1>OpenSteamTool Manager MyGo</h1>
 
   <p><em>Native Windows app that applies the OpenSteamTool patch to Steam and keeps it in step with your Steam build</em></p>
 
   <p>
     <a href="https://github.com/hu3rror/opensteamtool-gui-mygo/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/hu3rror/opensteamtool-gui-mygo/ci.yml?style=flat-square&label=CI" alt="CI"></a>
     <img src="https://img.shields.io/badge/platform-Windows-0078d4?style=flat-square&logo=windows&logoColor=white" alt="Windows">
-    <img src="https://img.shields.io/badge/Go-1.27-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go 1.27">
-    <a href="https://github.com/egoist/mygo"><img src="https://img.shields.io/badge/UI-MyGo-1B7A5E?style=flat-square" alt="MyGo"></a>
+    <a href="https://github.com/yldm-tech/mygo-breeze-ui"><img src="https://img.shields.io/badge/UI-Breeze-0067C0?style=flat-square" alt="Breeze UI"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT"></a>
   </p>
 
   <p><a href="README.md">English</a> · <a href="README_zh-CN.md">简体中文</a></p>
 </div>
 
-OpenSteamTool Manager is a desktop front end for the [OpenSteamTool](https://github.com/OpenSteam001/OpenSteamTool) patch. You pick a patch source; the app downloads that source's release, deploys the files into your Steam installation, and starts Steam again. It also removes the patch, tells you whether the patch fits the Steam build you have, and keeps the files you changed by hand.
+OpenSteamTool Manager MyGo is a desktop front end for the [OpenSteamTool](https://github.com/OpenSteam001/OpenSteamTool) patch. You pick a patch source; the app downloads that source's release, deploys the files into your Steam installation, and starts Steam again. It also removes the patch, tells you whether the patch fits the Steam build you have, and keeps the files you changed by hand.
 
-The window is native — Go and [MyGo](https://github.com/egoist/mygo), no web view, no bundled runtime.
+The window is native — Go, [MyGo](https://github.com/egoist/mygo) and [Breeze UI](https://github.com/yldm-tech/mygo-breeze-ui) — so no web view and no bundled runtime, and the controls are drawn the way Windows 11 draws its own: they follow the desktop's light or dark appearance, accent color, contrast setting and text size.
 
 ## Features
 
 - **Apply in one click** — closes Steam when it is running, deploys the downloaded patch, then starts Steam. A second action removes it, asking first whether Steam should close.
-- **Patch sources by repository** — three built-in sources plus any `owner/repo` on GitHub. Each source is locked to the one file layout it publishes, so switching sources never mixes files from two layouts.
+- **Patch sources by repository** — built-in sources plus any `owner/repo` on GitHub. Each source is locked to the one file layout it publishes, so switching sources never mixes files from two layouts.
 - **Patch updates** — checks the latest release of the selected source, normalises versions (`v1.2.3` and `1.2.3` are the same), and keeps one cached copy per source.
 - **Compatibility check** — reads the installed Steam build and reports whether the patch supports it, with an offline cache you can prewarm so a later check needs no network.
 - **Injection entry** — chooses which proxy DLL loads the patch; the alternate early-isolation entry of the OpenSteamTool layout is available for troubleshooting, except under the official source.
@@ -42,30 +41,32 @@ The window is native — Go and [MyGo](https://github.com/egoist/mygo), no web v
 
 ## Install
 
-No release is published yet, so build it yourself or take the artifact of a Release workflow run:
+Download the latest [release](https://github.com/hu3rror/opensteamtool-gui-mygo/releases/latest): run `opensteamtool-gui-mygo-setup-<version>-amd64.exe` to install, or take `opensteamtool-gui-mygo.exe` and run it from any folder. Caches are written next to the executable, so an installed copy and a copied folder behave the same.
+
+To build it yourself:
 
 ```bash
 go tool mygo build
 ```
 
-`build/windows-amd64/` then holds `opensteamtool-gui-mygo.exe` and the installer `opensteamtool-gui-mygo-setup-<version>-amd64.exe`. The folder is portable: the executable writes its caches next to itself, so an installed copy and a copied folder behave the same.
+`build/windows-amd64/` then holds `opensteamtool-gui-mygo.exe`, and the installer `opensteamtool-gui-mygo-setup-<version>-amd64.exe` too when NSIS is available (on Windows `mygo build` fetches it the first time it needs it).
 
 ## First run
 
 The wizard asks for the interface language, the theme, the Steam folder and the first patch download. It skips itself once a valid configuration exists, and **Settings → About → Run the setup wizard again** brings it back with the current values as the starting point.
 
-The main window then shows one of two states — **Applied** or **Not applied** — with a line for the Steam client, the result of the last action and the patch update check. The Steam core compatibility section sits in **Settings → Steam**, and a warning line on the main window leads there when the patch does not fit your Steam build. Applying while Steam runs closes Steam first; only the uninstall actions ask before closing.
+The main window then shows one of three marks — **Applied**, **Not applied**, or **Patch failed to apply** after a failed apply — with a line for the Steam client, the result of the last action and the patch update check. The Steam core compatibility section sits in **Settings → Steam**, and a warning line on the main window leads there when the patch does not fit your Steam build. Applying while Steam runs closes Steam first; only the uninstall actions ask before closing.
 
 ## Patch sources
 
 | Source | Repository | Layout | Note |
 |---|---|---|---|
-| Official | [`OpenSteam001/OpenSteamTool`](https://github.com/OpenSteam001/OpenSteamTool) | OpenSteamTool | Not updated for a long time |
+| Official | [`OpenSteam001/OpenSteamTool`](https://github.com/OpenSteam001/OpenSteamTool) | OpenSteamTool | Upstream is long unmaintained; the app warns when you pick it |
 | Community-maintained | [`huanyuejue/OpenSteamTool`](https://github.com/huanyuejue/OpenSteamTool) | OpenSteamTool | The default source |
 | SteamDaddy | [`Contrary-v2/SteamDaddy-Dll`](https://github.com/Contrary-v2/SteamDaddy-Dll) | SteamDaddy | Different layout, different injection entry |
 | Custom | any `owner/repo` on GitHub | OpenSteamTool | The release should carry a `*-Release.zip` asset; any other `.zip` is taken as well |
 
-Hovering a source row shows its role and layout; the official source also shows its note. The layout is not a setting: it follows from the source, because a patch release only makes sense in its own layout.
+Hovering a source row shows its role and layout, and the official source adds its note there; picking it also puts that warning under the list. The layout is not a setting: it follows from the source, because a patch release only makes sense in its own layout.
 
 ## Settings
 
@@ -83,6 +84,7 @@ The app keeps its configuration and caches in the folder that holds the executab
 
 | Path | Content |
 |---|---|
+| `config.json` | Your settings: Steam path, language, theme, patch source, injection entry, last deployment |
 | `patches/<source>/` | The cached patch of that source, one version at a time |
 | `cache/verified.toml` | Component fingerprints that passed verification |
 | `userdata/<source>/` | Optional files you changed by hand, restored on the next deploy |
@@ -101,7 +103,7 @@ CGO_ENABLED=0 go test ./...               # the suite
 go tool mygo build                        # build/<os>-<arch>/
 ```
 
-`.github/workflows/ci.yml` runs vet and the tests on `windows-latest`. `.github/workflows/release.yml` builds the Windows artifacts on a `v*` tag and uploads them as a workflow artifact; it does not publish a release.
+`.github/workflows/ci.yml` runs vet and the tests on `windows-latest`. `.github/workflows/release.yml` builds the Windows artifacts on a `v*` tag and publishes them as a GitHub Release; tag the commit that bumped `version` in `mygo.json`, so the installer's name carries that version.
 
 The code is split by concern: `internal/app` holds the state, `internal/view` the window, `internal/patch`, `internal/deploy`, `internal/source`, `internal/compat` and `internal/steam` the domain. `GLOSSARY.md` fixes the vocabulary, `docs/adr/` the decisions behind it.
 
@@ -110,7 +112,10 @@ The code is split by concern: `internal/app` holds the state, `internal/view` th
 > [!WARNING]
 > This is an unofficial tool. It modifies the Steam client and is not affiliated with Valve. Whether that is allowed is between you and Steam's Subscriber Agreement.
 
+> [!IMPORTANT]
+> This tool only manages a patch; it ships no Lua scripts, no patch files and no crack or bypass, and it does not look for them for you. The patch it deploys comes from the source you pick; any Lua script or other extra is yours to find, and whether to use it is your call.
+
 > [!NOTE]
-> The app does not update itself yet. **About → Check for app updates** compares the running version with the latest GitHub release and offers the download page.
+> The app does not update itself. **About → Check for app updates** compares the running version with the latest GitHub release and offers the download page.
 
 The patch binaries belong to their own projects and are licensed GPL-3.0; this app downloads them at run time and ships none of them. Its own source is MIT — see [`LICENSE`](LICENSE).
